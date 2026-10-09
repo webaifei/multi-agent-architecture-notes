@@ -23,6 +23,7 @@
     "c2s2": "node chapter2-claude-code/step2-agent-tool.mjs",
     "c2s3": "node chapter2-claude-code/step3-parallel-background.mjs",
     "c2s4": "node chapter2-claude-code/step4-tools-and-hooks.mjs",
-    "c3s1": "node chapter3-dsh/step1-capability-seam.mjs"
+    "c3s1": "node chapter3-dsh/step1-capability-seam.mjs",
+    "c3s2": "node chapter3-dsh/step2-three-backends.mjs"
   }
 }
