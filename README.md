@@ -81,7 +81,7 @@ multi-agent-lab/
 
 ### 第 3 章 · DeepSeek Harness 式（持久团队）
 
-- [ ] 3.1 能力接缝：Service Definition / Provider / Consumer
+- [x] **3.1 能力接缝**：`lib/seam.mjs` + `lib/tool-subagent.mjs` —— Service Definition / Provider / Consumer、多 provider 并列、能力预检 fail loud、工具随 provider 生命周期
 - [ ] 3.2 三种子 agent 后端：spawn / fork / 跨进程
 - [ ] 3.3 邻近 agent 的消息、中断、列举
 - [ ] 3.4 共享任务板：认领、依赖、写范围
