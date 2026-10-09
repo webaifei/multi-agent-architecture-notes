@@ -17,6 +17,8 @@
     "c1s4": "node chapter1-codex/step4-sandbox.mjs",
     "c1s4:real": "node chapter1-codex/step4-sandbox.mjs --real",
     "c1s5": "node chapter1-codex/step5-subagent.mjs",
-    "c1s6": "node chapter1-codex/step6-parallel-mailbox.mjs"
+    "c1s6": "node chapter1-codex/step6-parallel-mailbox.mjs",
+    "c2s1": "node chapter2-claude-code/step1-agent-defs.mjs",
+    "c2s1:strict": "node chapter2-claude-code/step1-agent-defs.mjs --strict"
   }
 }

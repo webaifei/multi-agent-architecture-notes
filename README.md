@@ -72,9 +72,9 @@ multi-agent-lab/
 
 ### 第 2 章 · Claude Code 式（声明式子 agent）
 
-- [ ] 2.1 用 Markdown + frontmatter 定义一个 subagent
-- [ ] 2.2 `Task` 工具：隔离上下文，只回传最终消息
-- [ ] 2.3 并行 Task 与后台任务
+- [x] **2.1 声明式定义**：`lib/agent-defs.mjs` —— Markdown + frontmatter、发现优先级、未知字段静默忽略的坑
+- [ ] 2.2 `Agent` 工具：隔离上下文，只回传最终消息
+- [ ] 2.3 并行 Agent 调用与后台任务
 - [ ] 2.4 工具白名单与 hooks
 - [ ] 2.5 三种编排模式：主管-工人 / 流水线 / 对抗验证
 
