@@ -65,7 +65,7 @@ multi-agent-lab/
 - [x] **1.1 最小 agent loop**：`chapter1-codex/step1-agent-loop.mjs`
 - [x] **1.2 工具层**：`exec_command` + `apply_patch`（FREEFORM）+ 结果截断 + 失败自愈
 - [x] **1.3 会话落盘**：rollout JSONL + 事件钩子 + 重放断言 + resume
-- [ ] 1.4 审批策略与沙箱（approval policy / sandbox policy）
+- [x] **1.4 审批与沙箱**：sandbox × approval 两个正交旋钮 + 「策略层不是安全边界」现场演示
 - [ ] 1.5 子 agent：进程内新造一份 Session（对应 `spawn_agent` / `wait_agent`）
 - [ ] 1.6 并行子 agent、邮箱消息与状态轮询（`send_message` / `followup_task` / `interrupt_agent`）
 
