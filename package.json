@@ -15,6 +15,7 @@
     "c1s3": "node chapter1-codex/step3-session-log.mjs",
     "c1s3:real": "node chapter1-codex/step3-session-log.mjs --real",
     "c1s4": "node chapter1-codex/step4-sandbox.mjs",
-    "c1s4:real": "node chapter1-codex/step4-sandbox.mjs --real"
+    "c1s4:real": "node chapter1-codex/step4-sandbox.mjs --real",
+    "c1s5": "node chapter1-codex/step5-subagent.mjs"
   }
 }
