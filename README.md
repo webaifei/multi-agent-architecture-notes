@@ -67,7 +67,8 @@ multi-agent-lab/
 - [x] **1.3 会话落盘**：rollout JSONL + 事件钩子 + 重放断言 + resume
 - [x] **1.4 审批与沙箱**：sandbox × approval 两个正交旋钮 + 「策略层不是安全边界」现场演示
 - [x] **1.5 子 agent**：`AgentRegistry` + `spawn_agent` / `wait_agent` / `list_agents`，进程内新造 Session + 深度/并发闸
-- [ ] 1.6 并行子 agent、邮箱消息与状态轮询（`send_message` / `followup_task` / `interrupt_agent`）
+- [x] **1.6 并行与协作**：fan-out 聚合、邮箱 `send_message`（QueueOnly）、`followup_task`、`interrupt_agent`
+- [x] **第 1 章总结**：`docs/chapter1-codex.md`（四格表 + 真实源码对照）
 
 ### 第 2 章 · Claude Code 式（声明式子 agent）
 
