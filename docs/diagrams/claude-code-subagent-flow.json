@@ -1,0 +1,299 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Claude Code 式：一次需要 subagent 的用户意图",
+    "subtitle": "角色是声明，上下文默认全新，能力按白名单裁剪，规则走 hooks",
+    "locale": "zh-CN",
+    "output": ".archify/sequence-subagent-flows-20261009-211500/claude-code-subagent.html",
+    "column_fit": "spread",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    {
+      "id": "user",
+      "type": "external",
+      "label": "用户",
+      "sublabel": "一次意图"
+    },
+    {
+      "id": "main",
+      "type": "backend",
+      "label": "主循环",
+      "sublabel": "持有 Agent 工具"
+    },
+    {
+      "id": "model",
+      "type": "cloud",
+      "label": "模型",
+      "sublabel": "按 description"
+    },
+    {
+      "id": "defs",
+      "type": "database",
+      "label": "角色声明",
+      "sublabel": "agents/*.md"
+    },
+    {
+      "id": "child",
+      "type": "backend",
+      "label": "子循环",
+      "sublabel": "全新上下文"
+    },
+    {
+      "id": "hooks",
+      "type": "messagebus",
+      "label": "hooks 总线",
+      "sublabel": "Pre / Post hook"
+    },
+    {
+      "id": "tools",
+      "type": "security",
+      "label": "工具层",
+      "sublabel": "裁剪后的工具集"
+    }
+  ],
+  "segments": [
+    {
+      "from": 145,
+      "to": 360,
+      "label": "① 路由到角色"
+    },
+    {
+      "from": 365,
+      "to": 720,
+      "label": "② 全新上下文 + 受控工具"
+    },
+    {
+      "from": 725,
+      "to": 930,
+      "label": "③ 只回传最后一条消息"
+    }
+  ],
+  "messages": [
+    {
+      "id": "intent",
+      "from": "user",
+      "to": "main",
+      "y": 200,
+      "label": "确认 notes.md 写了什么，并复核",
+      "variant": "default"
+    },
+    {
+      "id": "ask-1",
+      "from": "main",
+      "to": "model",
+      "y": 236,
+      "label": "请求下一步",
+      "variant": "default"
+    },
+    {
+      "id": "call-agent",
+      "from": "model",
+      "to": "main",
+      "y": 272,
+      "label": "tool_call: Agent(prompt, subagent_type)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "lookup",
+      "from": "main",
+      "to": "defs",
+      "y": 308,
+      "label": "按 subagent_type 查角色",
+      "variant": "default",
+      "note": "省略时回退 general-purpose"
+    },
+    {
+      "id": "definition",
+      "from": "defs",
+      "to": "main",
+      "y": 344,
+      "label": "定义正文 + tools 白名单",
+      "variant": "return"
+    },
+    {
+      "id": "assemble",
+      "from": "main",
+      "to": "child",
+      "y": 416,
+      "label": "装配：正文 + env（CLAUDE.md / git / 名册），并按白名单裁剪工具",
+      "variant": "emphasis"
+    },
+    {
+      "id": "child-ask",
+      "from": "child",
+      "to": "model",
+      "y": 452,
+      "label": "请求下一步（messages 只有 1 条）",
+      "variant": "default"
+    },
+    {
+      "id": "child-call",
+      "from": "model",
+      "to": "child",
+      "y": 488,
+      "label": "tool_call: read_file",
+      "variant": "default"
+    },
+    {
+      "id": "pre-hook",
+      "from": "child",
+      "to": "hooks",
+      "y": 524,
+      "label": "PreToolUse（可否决）",
+      "variant": "security"
+    },
+    {
+      "id": "pre-ok",
+      "from": "hooks",
+      "to": "child",
+      "y": 560,
+      "label": "放行",
+      "variant": "return"
+    },
+    {
+      "id": "exec",
+      "from": "child",
+      "to": "tools",
+      "y": 596,
+      "label": "执行 read_file",
+      "variant": "default"
+    },
+    {
+      "id": "raw",
+      "from": "tools",
+      "to": "child",
+      "y": 632,
+      "label": "原始输出",
+      "variant": "return"
+    },
+    {
+      "id": "post-hook",
+      "from": "child",
+      "to": "hooks",
+      "y": 668,
+      "label": "PostToolUse（可改写 / 脱敏）",
+      "variant": "security"
+    },
+    {
+      "id": "redacted",
+      "from": "hooks",
+      "to": "child",
+      "y": 704,
+      "label": "脱敏后的输出",
+      "variant": "return"
+    },
+    {
+      "id": "child-done",
+      "from": "child",
+      "to": "main",
+      "y": 776,
+      "label": "只回最终消息",
+      "variant": "return"
+    },
+    {
+      "id": "as-tool-result",
+      "from": "main",
+      "to": "model",
+      "y": 812,
+      "label": "工具结果：一个字符串",
+      "variant": "default"
+    },
+    {
+      "id": "final",
+      "from": "model",
+      "to": "main",
+      "y": 848,
+      "label": "最终回答",
+      "variant": "return"
+    },
+    {
+      "id": "reply",
+      "from": "main",
+      "to": "user",
+      "y": 884,
+      "label": "回答",
+      "variant": "return"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "main",
+      "from": 200,
+      "to": 890,
+      "type": "backend"
+    },
+    {
+      "participant": "model",
+      "from": 236,
+      "to": 500,
+      "type": "cloud"
+    },
+    {
+      "participant": "defs",
+      "from": 308,
+      "to": 350,
+      "type": "database"
+    },
+    {
+      "participant": "child",
+      "from": 416,
+      "to": 782,
+      "type": "backend"
+    },
+    {
+      "participant": "hooks",
+      "from": 524,
+      "to": 566,
+      "type": "messagebus"
+    },
+    {
+      "participant": "tools",
+      "from": 596,
+      "to": 638,
+      "type": "security"
+    },
+    {
+      "participant": "hooks",
+      "from": 668,
+      "to": 710,
+      "type": "messagebus"
+    },
+    {
+      "participant": "model",
+      "from": 812,
+      "to": 854,
+      "type": "cloud"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "角色是数据，隔离是默认值",
+      "items": [
+        "一个 .md 文件 = 一个角色；不需要改代码就能加 agent",
+        "child 拿不到父级对话历史、父级系统提示词、auto-memory",
+        "给的是长期有效的背景：CLAUDE.md、git 快照、同级 agent 名册"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "取结果：前台等，或后台通知自己送上门",
+      "items": [
+        "前台 Agent 调用阻塞到跑完，只回最终消息",
+        "run_in_background 立刻返回，完成通知在之后的某一轮注入父上下文",
+        "定义里写 background: true 会强制后台，模型说了不算"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "安全：在装配层",
+      "items": [
+        "tools / disallowedTools 是能力裁剪：工具从提示里消失、调用也失败",
+        "hooks 让外部能阻断（Pre）与改写（Post），规则不依赖模型自觉",
+        "深度默认 3、并发默认 20，超了直接拒绝"
+      ]
+    }
+  ]
+}

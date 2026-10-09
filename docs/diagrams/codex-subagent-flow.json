@@ -1,0 +1,283 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Codex 式：一次需要 subagent 的用户意图",
+    "subtitle": "进程内新造一份 Session，只把最后一条消息还给父 agent",
+    "locale": "zh-CN",
+    "output": ".archify/sequence-subagent-flows-20261009-211500/codex-subagent.html",
+    "column_fit": "spread",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    {
+      "id": "user",
+      "type": "external",
+      "label": "用户",
+      "sublabel": "一次意图"
+    },
+    {
+      "id": "main",
+      "type": "backend",
+      "label": "主 Session",
+      "sublabel": "主 agent 循环"
+    },
+    {
+      "id": "model",
+      "type": "cloud",
+      "label": "模型",
+      "sublabel": "只决定下一步"
+    },
+    {
+      "id": "registry",
+      "type": "backend",
+      "label": "AgentRegistry",
+      "sublabel": "spawn / wait"
+    },
+    {
+      "id": "child",
+      "type": "backend",
+      "label": "子 Session",
+      "sublabel": "独立 messages"
+    },
+    {
+      "id": "tools",
+      "type": "security",
+      "label": "工具层",
+      "sublabel": "exec / patch"
+    },
+    {
+      "id": "audit",
+      "type": "database",
+      "label": "rollout 日志",
+      "sublabel": "JSONL，可回放"
+    }
+  ],
+  "segments": [
+    {
+      "from": 145,
+      "to": 320,
+      "label": "① 派活"
+    },
+    {
+      "from": 325,
+      "to": 620,
+      "label": "② 子 agent 独立执行（隔离）"
+    },
+    {
+      "from": 625,
+      "to": 860,
+      "label": "③ 只回传最后一条消息"
+    }
+  ],
+  "messages": [
+    {
+      "id": "intent",
+      "from": "user",
+      "to": "main",
+      "y": 200,
+      "label": "确认 notes.md 写了什么，并复核",
+      "variant": "default"
+    },
+    {
+      "id": "ask-1",
+      "from": "main",
+      "to": "model",
+      "y": 236,
+      "label": "请求下一步（messages + 工具清单）",
+      "variant": "default"
+    },
+    {
+      "id": "call-spawn",
+      "from": "model",
+      "to": "main",
+      "y": 272,
+      "label": "tool_call: spawn_agent(task)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "spawn",
+      "from": "main",
+      "to": "registry",
+      "y": 308,
+      "label": "Session::spawn（进程内新会话）",
+      "variant": "emphasis",
+      "note": "立刻返回 agent_id，不等它跑完"
+    },
+    {
+      "id": "start-child",
+      "from": "registry",
+      "to": "child",
+      "y": 380,
+      "label": "启动独立循环（messages 全新）",
+      "variant": "default"
+    },
+    {
+      "id": "child-ask",
+      "from": "child",
+      "to": "model",
+      "y": 416,
+      "label": "请求下一步（自己的 system / tools）",
+      "variant": "default"
+    },
+    {
+      "id": "child-call",
+      "from": "model",
+      "to": "child",
+      "y": 452,
+      "label": "tool_call: exec_command",
+      "variant": "default"
+    },
+    {
+      "id": "exec",
+      "from": "child",
+      "to": "tools",
+      "y": 488,
+      "label": "执行（先过沙箱 + 审批）",
+      "variant": "security"
+    },
+    {
+      "id": "stdout",
+      "from": "tools",
+      "to": "child",
+      "y": 524,
+      "label": "stdout（截断后）",
+      "variant": "return"
+    },
+    {
+      "id": "persist",
+      "from": "child",
+      "to": "audit",
+      "y": 560,
+      "label": "追加事件（模型可见 ⟺ 已落盘）",
+      "variant": "dashed"
+    },
+    {
+      "id": "child-done",
+      "from": "child",
+      "to": "registry",
+      "y": 596,
+      "label": "完成：last_agent_message",
+      "variant": "return"
+    },
+    {
+      "id": "wait",
+      "from": "main",
+      "to": "registry",
+      "y": 668,
+      "label": "wait_agent(agent_id)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "completed",
+      "from": "registry",
+      "to": "main",
+      "y": 704,
+      "label": "Completed(last_agent_message)",
+      "variant": "return"
+    },
+    {
+      "id": "as-tool-result",
+      "from": "main",
+      "to": "model",
+      "y": 740,
+      "label": "工具结果：一个字符串",
+      "variant": "default"
+    },
+    {
+      "id": "final",
+      "from": "model",
+      "to": "main",
+      "y": 776,
+      "label": "最终回答",
+      "variant": "return"
+    },
+    {
+      "id": "reply",
+      "from": "main",
+      "to": "user",
+      "y": 812,
+      "label": "回答",
+      "variant": "return"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "main",
+      "from": 200,
+      "to": 818,
+      "type": "backend"
+    },
+    {
+      "participant": "model",
+      "from": 236,
+      "to": 458,
+      "type": "cloud"
+    },
+    {
+      "participant": "registry",
+      "from": 308,
+      "to": 386,
+      "type": "backend"
+    },
+    {
+      "participant": "child",
+      "from": 380,
+      "to": 602,
+      "type": "backend"
+    },
+    {
+      "participant": "tools",
+      "from": 488,
+      "to": 530,
+      "type": "security"
+    },
+    {
+      "participant": "audit",
+      "from": 560,
+      "to": 566,
+      "type": "database"
+    },
+    {
+      "participant": "registry",
+      "from": 668,
+      "to": 710,
+      "type": "backend"
+    },
+    {
+      "participant": "model",
+      "from": 740,
+      "to": 782,
+      "type": "cloud"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "隔离：一份全新的会话",
+      "items": [
+        "spawn 造的是独立 Session：自己的 messages、自己的 IO 通道、自己的 rollout",
+        "隔离程度是**参数**：Isolated / Forked / WarmFork / FullHistory 可选",
+        "孩子的中间过程留在它自己的日志里，不回父上下文"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "取结果：wait 主动去等",
+      "items": [
+        "spawn 立刻返回 agent_id，wait 才取结果 —— 这一刀切下去才有并行",
+        "回传的只有 Completed(last_agent_message)",
+        "父上下文里，这个子 agent 的全部价值就是一个字符串"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "安全：在执行环境层",
+      "items": [
+        "沙箱 read-only / workspace-write / danger-full-access 由 OS 强制",
+        "审批策略 never / on-request / on-failure 是两个正交旋钮",
+        "委派前置条件：approval_policy 必须是 never，否则 spawn 直接报错"
+      ]
+    }
+  ]
+}

@@ -44,6 +44,7 @@
 multi-agent-lab/
 ├── README.md              # 你在这里
 ├── docs/                  # 讲解文档（概念、每章笔记、最终对比）
+│   ├── diagrams/          # 数据流图（可交互 HTML + PNG + 源 JSON）
 │   └── sources/           # 资料来源：每条机制的可核对出处，正文引用它
 ├── lib/                   # 三层公共设施：模型适配、trace 输出、后续还会加会话日志
 └── chapter1-codex/        # 第 1 章的可运行步骤，一个 step 一个文件
@@ -89,6 +90,7 @@ multi-agent-lab/
 
 ### 第 4 章 · 对比
 
+- [x] **数据流图**：`docs/diagrams/` —— Codex 与 Claude Code 在一次「需要 subagent 的用户意图」下的完整时序与数据流转
 - [ ] `docs/99-comparison.md`：一张表说清三家取舍
 
 ## 怎么跑
