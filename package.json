@@ -1,0 +1,14 @@
+{
+  "name": "multi-agent-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "深入浅出：分别实现 Codex / Claude Code / DeepSeek Harness 的多 agent 架构",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "c1s1": "node chapter1-codex/step1-agent-loop.mjs",
+    "c1s1:real": "node chapter1-codex/step1-agent-loop.mjs --real"
+  }
+}
