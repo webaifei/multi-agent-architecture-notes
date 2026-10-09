@@ -2,69 +2,143 @@
 
 本页只放**能核对的事实**，每条都带出处。章节讲解里出现的每个机制，都应该能在下面找到对应条目。
 
-置信度标记：**[源码]** = 本机一手源码，**[官方]** = 官方文档/仓库，**[待核]** = 尚未验证，不在正文里当结论用。
+置信度标记：**[源码]** = 已读一手源码，**[官方]** = 官方文档已核对，**[待核]** = 未验证，不在正文里当结论用。
 
-## 一级来源
+> ⚠️ **重要更正**：本页第一版曾写「Codex 的 agent 边界是进程边界」。
+> 更深入的核查表明：**Codex CLI 自己的子 agent 是进程内的独立 Session**（`Session::spawn`），不是子进程。
+> 「进程 + 协议」是 **DeepSeek Harness 从外部驱动 Codex** 的方式（app-server），两件事必须分开讲。
+
+## 一手来源
 
 | 来源 | 是什么 |
 | --- | --- |
-| `packages/subagent/subagent-codex/src/wire.ts` | DeepSeek Harness 里的 **Codex app-server 0.153.4 协议适配器**。这是「把真实 Codex 当子 agent 驱动」的完整实现 |
-| `packages/subagent/subagent-codex/src/run.ts` | 子进程生命周期 + `permissionMode` → `thread/start` 字段映射 |
-| `packages/subagent/subagent-codex/README.md` | 配置项、权限模式表、已知限制 |
-| `docs/subsystems/subagent.md` | Harness 的委托能力接缝契约（第 3 章的主角） |
+| `openai/codex` → `codex-rs/core/src/agent/`（`control/`、`registry.rs`、`role.rs`、`status.rs`） | Codex 子 agent 的注册表、生命周期、状态 |
+| `codex-rs/core/src/codex_delegate.rs` | spawn 一个子 agent 的真实入口 |
+| `codex-rs/core/src/tools/handlers/multi_agents_spec.rs`、`multi_agents_v2/` | 暴露给模型的协作工具 |
+| `codex-rs/core/src/agent/control/mailbox.rs`、`agent_message_board.rs` | 邮箱与共享消息板 |
+| `codex-rs/rollout/src/lib.rs` | 会话落盘（JSONL）格式与路径 |
+| `codex-rs/core/src/tools/handlers/apply_patch_spec.rs` | `apply_patch` 的 FREEFORM 规范 |
+| 官方文档 `learn.chatgpt.com/docs/agent-configuration/subagents` 等 | 配置键与用户可见行为 |
+| 本仓 `packages/subagent/subagent-codex/src/wire.ts` | Harness **从外部**驱动 Codex 的 app-server 适配器 |
 
-> 为什么先读这里：DeepSeek Harness 已经把 Codex 的协议摸了一遍，而且是被测试覆盖的产品代码。
-> 读它比自己猜 codex-rs 的内部结构快得多，而且是可验证的。
+> 时效性：以上仓库观察取自 2026-10-09 的 `main`。这块变化很快，教学时应当**钉一个 commit**，否则半年后对不上。
 
-## 已核实事实
+## 一、Codex CLI 自己的多 agent（进程内）
 
-### 1. Codex 是可被外部驱动的「进程 + 协议」
+### 1. 协作工具的真实名字
 
-- **[源码]** 启动方式固定为 `codex app-server --stdio`（`run.ts` 里是 `[process.execPath, CODEX_PACKAGE_BIN, 'app-server', '--stdio']`），走 **JSON-RPC 行协议**。
-- **[源码]** 握手顺序：客户端发 `initialize` 请求 → 收到响应 → 发 `initialized` **通知**（notification，不等响应）。然后才能开 thread。
-- **[源码]** 一次委派 = 一个 **ephemeral thread** + 一个 turn；协议版本对齐 `0.153.4`。
+**[源码]** `multi_agents_spec.rs` 定义了两套命名空间：
 
-**教学含义**：Codex 的「agent 边界」是**进程边界**。子 agent 不是同进程里的一个对象，而是一个独立进程 + 一份协商好的协议。这解释了它为什么沙箱/审批最扎实，也解释了它跨进程通信的天花板。
+| 版本 | 工具 |
+| --- | --- |
+| V1 命名空间 `multi_agent_v1` | `spawn_agent`、`send_input`、`resume_agent`、`wait_agent`、`close_agent` |
+| V2（裸名字） | `spawn_agent`、`send_message`、`followup_task`、`wait_agent`、`interrupt_agent`、`list_agents` |
 
-### 2. 审批与沙箱是「两个正交旋钮」
+工具命名空间描述原文：`"Tools for spawning and managing sub-agents."`
 
-**[源码]** `run.ts` 里的三档 `permissionMode`，直接映射成 `thread/start` 参数：
+**教学含义**：这六个动词基本就是「多 agent 生命周期」的标准动作集合：
+**造 → 说 → 追问 → 等 → 打断 → 收尾**。第 1.5 / 1.6 节直接照这个动词表实现。
 
-| permissionMode | thread/start 字段 | 含义 |
-| --- | --- | --- |
-| `never`（默认） | `approvalPolicy: 'never'` | 从不问人；失败就作为结果回给模型 |
-| `approve-for-me` | `approvalPolicy: 'on-request'` + `approvalsReviewer: 'auto_review'` + `sandbox: 'workspace-write'` | 权限请求交给模型自动评审，**不需要人类** |
-| `dangerously-bypass-approvals-and-sandbox` | `approvalPolicy: 'never'` + `sandbox: 'danger-full-access'` | 既不管审批也不管沙箱，必须显式选择 |
+### 2. 子 agent 怎么被创建：进程内，不是子进程
 
-**教学含义**：这里有两个独立维度——**要不要问**（approval）和**允许碰什么**（sandbox）。
-第 1.4 节就按这个二分法实现，而不是自己拍脑袋发明一套。
+**[源码]** `codex_delegate.rs` / `run_codex_thread_interactive`：调用 `Session::spawn(SessionSpawnArgs{…})`，
+**在同一个进程里**返回一个新的 `Session` 和它自己的 `SessionIo` 通道，再用 tokio 任务做 `forward_session_io` 桥接事件。
 
-### 3. 事件流里有三种重要 item
+**[源码]** 身份表示：`SessionSource::SubAgent(SubAgentSource::ThreadSpawn { parent_thread_id, depth, agent_path, agent_nickname, agent_role })`。
 
-**[源码]** 协议侧观察到的 item 类型至少包括：
+**教学含义**：一个「agent」在实现层面 = **一份独立的会话状态 + 一对 IO 通道**。
+只要我们能造出第二份 `messages` 数组和第二条事件流，我们就在同一个进程里拥有了多 agent。
+→ 这正是 1.5 节要写的东西，不需要真的 fork 进程。
 
-- `commandExecution` —— 执行命令，状态可能是 `declined`（被拒绝）；
-- `fileChange` —— 改文件，状态也可能是 `declined`；
-- `agentMessage` —— 模型说话，带 `phase` 字段：`final_answer` / `commentary` / `null`。
+### 3. 三道闸：深度、并发、审批前置条件
 
-**[源码]** 取最终答案的逻辑很讲究：优先取 `final_answer`；只有**没有** phase 的（`null`）才当后备答案；
-`commentary`（过程性发言）**不算**结果。所以一个 turn 的「产出」是被协议显式标注的，不是靠猜。
+- **[源码]** 深度：`next_thread_spawn_depth` + `exceeds_thread_spawn_depth_limit` —— 超过深度上限就不许再 spawn；
+- **[源码]** 并发：`AgentRegistry::reserve_spawn_slot(max_threads)` —— 预留名额，顺带保证 `AgentPath`/nickname 唯一；
+- **[源码]** 委派前必须 `approval_policy == Never`，否则 **spawn 直接报错**（fail loud）。
 
-**[源码]** 无人值守审批：遇到审批请求时，看 `availableDecisions`，有 `cancel` 选 `cancel`，否则 `decline`；
-两个都没有就**报错**而不是默认放行（fail loud）。
+**[官方]** 配置键：`[agents] enabled`、`max_concurrent_threads_per_session`、`default_subagent_model`、
+`default_subagent_reasoning_effort`、`interrupt_message`；`agents.max_threads` 是遗留别名。
+特性开关：`features.multi_agent`、`features.multi_agent_v2`。
+自定义 agent 是 TOML 文件，放 `~/.codex/agents/` 或 `.codex/agents/`，必填 `name`、`description`、`developer_instructions`；内置 `default`、`worker`、`explorer`。
 
-**教学含义**：第 1.3 节的会话日志、第 1.5 节的「只回传最终答案」，都是围绕 `phase` 这个设计展开的。
+**教学含义**：**并发和深度必须有上限**。这不是保守，而是多 agent 系统翻车的头号原因（指数级 fan-out）。
 
-### 4. 子 agent 的输入输出被刻意收窄
+### 4. 上下文隔离：三档，不是一个开关
 
-**[源码]** README：一次委派执行「一个自包含的文本任务」，**只返回最终答案**，或者一个安全的失败诊断。
-没有中途追问、没有增量回传。想换一种行为，就换一个 provider（Harness 有 Claude Code、ACP、DSH SDK 等并列实现）。
+**[源码]**
 
-**教学含义**：这是「一次性返回值」通信模式的教科书案例（见 `docs/00-concepts.md` 第三节）。
+| 模式 | 含义 |
+| --- | --- |
+| `SessionIsolation::Isolated` | 子会话不共享父级的扩展注册表 |
+| `SessionIsolation::Inherit` | 共享 |
+| `InitialHistory::Forked` + `ForkPersistence::Copied` | 历史被**复制**一份给子 agent |
+| `WarmFork` | 从父线程 fork |
+| `SpawnAgentForkMode::FullHistory` | `fork_turns` 省略或 `"all"` 时，连模型/推理档位一起继承 |
 
-## 待核实（下一轮补齐）
+**教学含义**：和 Claude Code 的「默认全新」不同，Codex 把「isolated / fork 历史」做成了**逐次可选的参数**。
+这解释了后面第 3 章为什么要有 `spawn` 与 `fork` 两个并列 provider。
 
-- [ ] codex-rs 内部 agent loop 的模块划分（core/src 下的会话、turn、item 表示）；
-- [ ] 会话落盘路径与 rollout JSONL 的确切格式；
-- [ ] `exec` / `apply_patch` 工具在协议层的确切名字与参数；
-- [ ] 云端并行任务与本地 CLI 多 agent 的边界。
+### 5. 通信：邮箱 + 共享消息板 + 状态轮询
+
+- **[源码]** 每个 agent 有真实邮箱（`agent/control/mailbox.rs`，`InterAgentCommunication`，指标 `core.mailbox.pending`）；
+  `InputQueue::deliver_mailbox_communication_to_current_turn` 把消息投递进当前回合。
+- **[源码]** `send_message` 的投递模式是 `MessageDeliveryMode::QueueOnly`（只排队，不立刻打断）；
+  `followup_task` 才会真的触发一个新 turn。
+- **[源码]** `wait_agent` 订阅该 agent 的状态直到终态；结果通过 `AgentStatus::Completed(last_agent_message)` 带回来。
+- **[源码]** 状态取值：`PendingInit | Running | Completed | Errored | Interrupted | Shutdown | NotFound`。
+- **[源码]** 共享黑板：`agent_message_board.rs`，按会话树（`SessionId`）隔离，本地 SQLite 或远程 HTTP 实现。
+- **[源码]** 命名：层级化的 `AgentPath`（根 → 任务名）+ 随机人类昵称；**没有「团队名」这个概念**。
+
+**教学含义**：这是「**异步消息 + 状态轮询**」的完整形态，比一次性返回值强得多。
+注意 `send_message`（只排队）和 `followup_task`（触发新回合）的区分——这是很细但很关键的设计。
+
+## 二、一个 Codex 回合的生命周期
+
+- **[源码]** 会话落盘：`~/.codex/sessions/YYYY/MM/DD/rollout-YYYY-MM-DDThh-mm-ss-<thread-id>.jsonl`
+  （另有 `.jsonl.zst` 压缩、`~/.codex/archived_sessions`、`session_index.jsonl`）；
+  常量 `SESSIONS_SUBDIR="sessions"`、`ARCHIVED_SESSIONS_SUBDIR="archived_sessions"`。每条记录是可回放的会话事件。
+- **[源码]** 工具：`exec_command`、`write_stdin`（持久 shell 会话）、`apply_patch`（**FREEFORM**，有 Lark 文法，
+  「不要用 JSON 包起来」）、`request_permissions`、`view_image`。
+- **[官方]** 审批：`approval_policy` = `never | on-request | on-failure | …`（`untrusted` 已退休）。
+  沙箱：`read-only | workspace-write | danger-full-access`，由 OS 强制（macOS Seatbelt；Linux Landlock），**默认断网**。
+  子 agent 继承父级沙箱；运行时用 `/permissions` 覆盖后会重新应用到子级。
+- **[官方]** `codex resume` 重开最近的本仓库会话。
+
+## 三、从外部驱动 Codex：app-server（DeepSeek Harness 的做法）
+
+这一节才是「进程 + 协议」。
+
+**[源码]** `packages/subagent/subagent-codex/src/wire.ts`：适配 Codex app-server **0.153.4** 的 JSON-RPC 行协议。
+
+- 启动：`codex app-server --stdio`；
+- 握手：`initialize` 请求 → `initialized` 通知 → `thread/start` → `turn/start`；
+- 一次委派 = 一个 ephemeral thread + 一个 turn，只回传最终答案；
+- `permissionMode` → `thread/start` 参数：
+
+| permissionMode | thread/start 字段 |
+| --- | --- |
+| `never`（默认） | `approvalPolicy: 'never'` |
+| `approve-for-me` | `approvalPolicy: 'on-request'` + `approvalsReviewer: 'auto_review'` + `sandbox: 'workspace-write'` |
+| `dangerously-bypass-approvals-and-sandbox` | `approvalPolicy: 'never'` + `sandbox: 'danger-full-access'` |
+
+- 事件：`turn/started`；item 类型 `commandExecution`、`fileChange`、`agentMessage`；
+  `agentMessage.phase` = `final_answer` / `commentary` / `null`，**只有 `final_answer` 算结果**；
+- 无人值守审批：从 `availableDecisions` 里选 `cancel`/`decline`，都没有就**报错**，不默认放行。
+
+**教学含义**：同一个 Codex，可以**进程内**当子 agent 用（第一节），也可以**跨进程**被驱动（这一节）。
+第 3 章会看到 Harness 正是选了后者，才能把 Codex 当成一个可插拔 provider。
+
+## 四、其他产品，别混进来
+
+- **[官方]** **Codex Cloud**：远程隔离工作区，一个任务一个 workspace —— 是另一个产品，不是子 agent。
+- **[官方]** **Codex SDK / app server**：对本地 Codex *thread* 的编程控制（start/continue/resume），不是 agent 委派 API。
+- **[官方]** **ChatGPT Work**：托管式子 agent 工作流（有 Ultra 主动委派档位）。
+- **[官方]** **OpenAI Agents SDK**（不同产品）：handoff 是 `transfer_to_<agent>` 这类**转移控制权**的工具调用，
+  不是并行 fork 会话。
+- **「Codex Swarm」：任何一手来源里都没找到，不要教。**
+
+## 待核实
+
+- [ ] `agents.max_concurrent_threads_per_session` 的默认值（文档只说「Codex 自己决定」）；
+- [ ] 未实际运行 CLI，进程内/线程的判断来自 `codex_delegate.rs` 源码阅读；
+- [ ] 某个具体构建里远端 agent 后端是否启用（`AgentControlInit::Local` vs 外部注入）未完全追踪。

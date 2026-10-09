@@ -32,7 +32,7 @@
 
 | 章节 | 对应真实系统 | 它的核心答案 |
 | --- | --- | --- |
-| 第 1 章 | **Codex**（OpenAI Codex CLI / codex-rs） | agent 是**进程**；子 agent 靠子进程 + 协议，工具层最重（exec / apply_patch / 沙箱 / 审批） |
+| 第 1 章 | **Codex**（OpenAI Codex CLI / codex-rs） | 一个 agent = **一份独立 Session + 自己的 IO 通道**（进程内）；子 agent 靠 `Session::spawn` 造出；工具层最重（exec_command / apply_patch / 沙箱 / 审批） |
 | 第 2 章 | **Claude Code**（Anthropic） | 子 agent 是**声明的 Markdown 文件**，主 agent 通过 `Task` 工具调用，上下文默认隔离，只回传最终消息 |
 | 第 3 章 | **DeepSeek Harness**（本仓库所在项目） | 子 agent 是**能力接缝**（Service/Provider/Consumer）；团队有共享任务板、持久消息、写范围，可跨进程 |
 
@@ -60,14 +60,14 @@ multi-agent-lab/
 - [x] `docs/00-concepts.md`：agent / loop / context / tool / 四个核心问题
 - [x] `docs/sources/`：Codex 与 Claude Code 的一手来源核对（含「待核实」清单）
 
-### 第 1 章 · Codex 式（进程 + 工具优先）
+### 第 1 章 · Codex 式（独立会话 + 工具优先）
 
 - [x] **1.1 最小 agent loop**：`chapter1-codex/step1-agent-loop.mjs`
-- [ ] 1.2 工具层：`exec_command` + `apply_patch` + 结果截断
+- [x] **1.2 工具层**：`exec_command` + `apply_patch`（FREEFORM）+ 结果截断 + 失败自愈
 - [ ] 1.3 会话落盘（rollout JSONL）与 resume
 - [ ] 1.4 审批策略与沙箱（approval policy / sandbox policy）
-- [ ] 1.5 子 agent：把「一个 Codex 进程」当成一次工具调用
-- [ ] 1.6 并行子 agent 与结果聚合
+- [ ] 1.5 子 agent：进程内新造一份 Session（对应 `spawn_agent` / `wait_agent`）
+- [ ] 1.6 并行子 agent、邮箱消息与状态轮询（`send_message` / `followup_task` / `interrupt_agent`）
 
 ### 第 2 章 · Claude Code 式（声明式子 agent）
 

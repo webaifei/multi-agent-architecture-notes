@@ -9,6 +9,8 @@
   },
   "scripts": {
     "c1s1": "node chapter1-codex/step1-agent-loop.mjs",
-    "c1s1:real": "node chapter1-codex/step1-agent-loop.mjs --real"
+    "c1s1:real": "node chapter1-codex/step1-agent-loop.mjs --real",
+    "c1s2": "node chapter1-codex/step2-tools.mjs",
+    "c1s2:real": "node chapter1-codex/step2-tools.mjs --real"
   }
 }
