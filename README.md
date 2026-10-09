@@ -44,15 +44,21 @@
 multi-agent-lab/
 ├── README.md              # 你在这里
 ├── docs/                  # 讲解文档（概念、每章笔记、最终对比）
+│   └── sources/           # 资料来源：每条机制的可核对出处，正文引用它
 ├── lib/                   # 三层公共设施：模型适配、trace 输出、后续还会加会话日志
 └── chapter1-codex/        # 第 1 章的可运行步骤，一个 step 一个文件
 ```
+
+> 原则：**讲解里的每个机制都要能追溯到一手来源**。
+> `docs/sources/codex.md` 和 `docs/sources/claude-code.md` 记录了已核实事实与「待核实」清单——
+> 没验证的说法不写进正文，避免教程里混入看起来合理的传言。
 
 ## 进度
 
 ### 第 0 章 · 概念
 
 - [x] `docs/00-concepts.md`：agent / loop / context / tool / 四个核心问题
+- [x] `docs/sources/`：Codex 与 Claude Code 的一手来源核对（含「待核实」清单）
 
 ### 第 1 章 · Codex 式（进程 + 工具优先）
 
