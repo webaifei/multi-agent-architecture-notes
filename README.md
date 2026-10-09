@@ -75,7 +75,7 @@ multi-agent-lab/
 - [x] **2.1 声明式定义**：`lib/agent-defs.mjs` —— Markdown + frontmatter、发现优先级、未知字段静默忽略的坑
 - [x] **2.2 `Agent` 工具**：`lib/agent-tool.mjs` —— 按角色装配全新上下文、环境块、只回传最终消息、实测隔离成本
 - [x] **2.3 并行与后台任务**：`run_in_background`、定义级 `background: true`、回合边界通知注入、并发闸门
-- [ ] 2.4 工具白名单与 hooks
+- [x] **2.4 工具白名单与 hooks**：`lib/hooks.mjs` + 能力裁剪（工具从提示里消失、调用被拒）+ PreToolUse 阻断 / PostToolUse 脱敏
 - [ ] 2.5 三种编排模式：主管-工人 / 流水线 / 对抗验证
 
 ### 第 3 章 · DeepSeek Harness 式（持久团队）

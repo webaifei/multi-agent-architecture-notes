@@ -97,8 +97,8 @@ const childContexts = []
 const agentTool = createAgentTool({
   definitions: agents,
   env,
-  childTools: base.tools,
-  childImpls: base.impls,
+  labTools: base.tools,
+  labImpls: base.impls,
   onChildContext: (context) => childContexts.push(context),
   makeChildModel: (definition) =>
     createMockModel(childScripts[definition.name] ?? [{ text: `（${definition.name} 没有剧本）`, toolCalls: [] }]),

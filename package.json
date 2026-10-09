@@ -21,6 +21,7 @@
     "c2s1": "node chapter2-claude-code/step1-agent-defs.mjs",
     "c2s1:strict": "node chapter2-claude-code/step1-agent-defs.mjs --strict",
     "c2s2": "node chapter2-claude-code/step2-agent-tool.mjs",
-    "c2s3": "node chapter2-claude-code/step3-parallel-background.mjs"
+    "c2s3": "node chapter2-claude-code/step3-parallel-background.mjs",
+    "c2s4": "node chapter2-claude-code/step4-tools-and-hooks.mjs"
   }
 }

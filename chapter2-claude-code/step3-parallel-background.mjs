@@ -106,8 +106,8 @@ const childContexts = []
 const agentTool = createAgentTool({
   definitions: agents,
   env,
-  childTools: base.tools,
-  childImpls: base.impls,
+  labTools: base.tools,
+  labImpls: base.impls,
   maxConcurrent: 2,
   onChildContext: (context) => childContexts.push(context),
   makeChildModel: (definition) =>
@@ -220,8 +220,8 @@ trace.banner('并发闸门', 'maxConcurrent = 1 时，第二个后台任务会�
 const smallTool = createAgentTool({
   definitions: agents,
   env,
-  childTools: base.tools,
-  childImpls: base.impls,
+  labTools: base.tools,
+  labImpls: base.impls,
   maxConcurrent: 1,
   makeChildModel: (definition) =>
     withDelay(createMockModel(childScripts[definition.name] ?? [{ text: '（无剧本）', toolCalls: [] }]), 60),
