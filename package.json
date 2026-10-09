@@ -19,6 +19,7 @@
     "c1s5": "node chapter1-codex/step5-subagent.mjs",
     "c1s6": "node chapter1-codex/step6-parallel-mailbox.mjs",
     "c2s1": "node chapter2-claude-code/step1-agent-defs.mjs",
-    "c2s1:strict": "node chapter2-claude-code/step1-agent-defs.mjs --strict"
+    "c2s1:strict": "node chapter2-claude-code/step1-agent-defs.mjs --strict",
+    "c2s2": "node chapter2-claude-code/step2-agent-tool.mjs"
   }
 }
