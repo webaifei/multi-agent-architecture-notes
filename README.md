@@ -1,8 +1,10 @@
-# multi-agent-lab
+# multi-agent-architecture-notes
 
 > 深入浅出：分别实现 **Codex**、**Claude Code**、**DeepSeek Harness** 三套多 agent 架构。
 >
 > 零依赖、纯 Node.js（`.mjs`），默认用确定性 Mock 模型，设了 `DEEPSEEK_API_KEY` 就能切真实模型。
+
+**图集在线看：<https://webaifei.github.io/multi-agent-architecture-notes/>**（13 张可交互的架构图，每张标注源码出处）
 
 ## 这一系列的其他仓库
 
@@ -56,12 +58,14 @@
 ## 目录结构
 
 ```
-multi-agent-lab/
+multi-agent-architecture-notes/
+├── index.html             # 图集入口页（GitHub Pages 用）
 ├── README.md              # 你在这里
 ├── docs/                  # 讲解文档（概念、每章笔记、最终对比）
-│   ├── diagrams/          # 数据流图（可交互 HTML + PNG + 源 JSON）
+│   ├── diagrams/          # 13 张架构图（可交互 HTML + PNG + 源 JSON）
+│   │   └── archive/       # 被新版取代的图
 │   └── sources/           # 资料来源：每条机制的可核对出处，正文引用它
-├── lib/                   # 三层公共设施：模型适配、trace 输出、后续还会加会话日志
+├── lib/                   # 三层公共设施：模型适配、trace 输出、会话日志、能力接缝
 └── chapter1-codex/        # 第 1 章的可运行步骤，一个 step 一个文件
 ```
 
@@ -109,7 +113,7 @@ multi-agent-lab/
 
 ### 第 4 章 · 对比
 
-- [x] **数据流图**：`docs/diagrams/` —— Codex 与 Claude Code 在一次「需要 subagent 的用户意图」下的完整时序与数据流转
+- [x] **架构图集**：`docs/diagrams/` —— 13 张图，分五组：Agent loop（环形）· Loop + 子 agent · 运行时全流程 · 子 agent 数据流 · 横向对照。在线看：<https://webaifei.github.io/multi-agent-architecture-notes/>
 - [ ] `docs/99-comparison.md`：一张表说清三家取舍
 
 ## 怎么跑

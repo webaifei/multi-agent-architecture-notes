@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>多 agent 架构图集 · Codex / Claude Code / DeepSeek Harness</title>
+<style>
+  :root {
+    --bg: #f7f7f8;
+    --card: #ffffff;
+    --line: #e4e4e7;
+    --ink: #18181b;
+    --muted: #71717a;
+    --accent: #2563eb;
+    --tag: #f4f4f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111113;
+      --card: #1b1b1f;
+      --line: #2c2c31;
+      --ink: #ededf0;
+      --muted: #9a9aa2;
+      --accent: #7aa2ff;
+      --tag: #26262b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 56px 24px 96px; }
+  header { margin-bottom: 12px; }
+  h1 { font-size: 27px; line-height: 1.35; margin: 0 0 10px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin: 0 0 18px; }
+  .meta { font-size: 13px; color: var(--muted); }
+  .meta a { color: var(--accent); text-decoration: none; }
+  .meta a:hover { text-decoration: underline; }
+  h2 {
+    font-size: 15px; font-weight: 600; margin: 44px 0 6px;
+    display: flex; align-items: baseline; gap: 10px;
+  }
+  h2 .n { font-size: 12px; color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
+  .note { color: var(--muted); font-size: 13px; margin: 0 0 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 14px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 16px 18px 14px; display: flex; flex-direction: column;
+  }
+  .card h3 { font-size: 14px; margin: 0 0 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .card p { margin: 0 0 12px; color: var(--muted); font-size: 13.5px; flex: 1; }
+  .links { display: flex; gap: 8px; flex-wrap: wrap; }
+  .links a {
+    font-size: 12.5px; text-decoration: none; padding: 5px 11px; border-radius: 6px;
+    border: 1px solid var(--line); color: var(--ink); background: var(--tag);
+  }
+  .links a.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .links a:hover { opacity: .82; }
+  footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  footer a { color: var(--accent); text-decoration: none; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; background: var(--tag); padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>多 agent 架构图集</h1>
+  <p class="sub">同一套骨架，三家分别怎么实现：<strong>Codex</strong> · <strong>Claude Code</strong> · <strong>DeepSeek Harness</strong>。每张图都标了源码出处。</p>
+  <p class="meta">
+    <a href="https://github.com/webaifei/multi-agent-architecture-notes">仓库</a> ·
+    <a href="https://github.com/webaifei/multi-agent-architecture-notes/tree/main/docs/sources">溯源档案</a> ·
+    图都由 archify 生成，源数据在 <code>docs/diagrams/*.json</code>
+  </p>
+</header>
+
+<h2><span class="n">01</span> Agent loop：一个环</h2>
+<p class="note">一圈 = 一次模型请求 + 它要求的工具。环心是日志，因为它不在环上，是每一步的落点。</p>
+<div class="grid">
+  <div class="card">
+    <h3>dsh-loop</h3>
+    <p>Inbox（两个队列）→ preStep → LLM → executeToolCalls → 回 Inbox。外面还套着 <code>kick()</code> 的回合循环。</p>
+    <div class="links"><a class="primary" href="docs/diagrams/dsh-loop.html">打开</a><a href="docs/diagrams/dsh-loop.png">PNG</a></div>
+  </div>
+  <div class="card">
+    <h3>codex-loop</h3>
+    <p>InputQueue → run_turn 步进 → client.stream → ToolCallRuntime。这个环外面还套着三层循环。</p>
+    <div class="links"><a class="primary" href="docs/diagrams/codex-loop.html">打开</a><a href="docs/diagrams/codex-loop.png">PNG</a></div>
+  </div>
+  <div class="card">
+    <h3>claude-code-loop</h3>
+    <p>只画 SDK 能证实的往返：输入帧 → query → Anthropic API → 工具 → result 帧。环内部不公开。</p>
+    <div class="links"><a class="primary" href="docs/diagrams/claude-code-loop.html">打开</a><a href="docs/diagrams/claude-code-loop.png">PNG</a></div>
+  </div>
+</div>
+
+<h2><span class="n">02</span> Loop + 子 agent：工具层再起一个同样的环</h2>
+<p class="note">三家都是「子 agent 跑的是同一个 loop，只是换了一份初始上下文」。差别在怎么起、怎么收。</p>
+<div class="grid">
+  <div class="card">
+    <h3>dsh-loop-sub</h3>
+    <p>子 agent 是 <code>ctx.subagents</code> 上按名字注册的 provider（spawn / fork / acp / codex / …）。</p>
+    <div class="links"><a class="primary" href="docs/diagrams/dsh-loop-sub.html">打开</a><a href="docs/diagrams/dsh-loop-sub.png">PNG</a></div>
+  </div>
+  <div class="card">
+    <h3>codex-loop-sub</h3>
+    <p><code>AgentControl::spawn</code> → 进程内新 Session + 自己的 SessionIo；结果靠 <code>wait_agent</code> 订阅到终态。</p>
+    <div class="links"><a class="primary" href="docs/diagrams/codex-loop-sub.html">打开</a><a href="docs/diagrams/codex-loop-sub.png">PNG</a></div>
+  </div>
+  <div class="card">
+    <h3>claude-code-loop-sub</h3>
+    <p><code>runAgent()</code> 直接复用 <code>query()</code>。含隐式 fork 与为 prompt cache 做的一整套工程。</p>
+    <div class="links"><a class="primary" href="docs/diagrams/claude-code-loop-sub.html">打开</a><a href="docs/diagrams/claude-code-loop-sub.png">PNG</a></div>
+  </div>
+</div>
+
+<h2><span class="n">03</span> 运行时全流程：每一步落到哪</h2>
+<p class="note">流水线版。环形图讲「循环长什么样」，这一组讲「每个动作落到哪张表、哪个函数」。</p>
+<div class="grid">
+  <div class="card">
+    <h3>dsh-runtime</h3>
+    <p>三层循环 + 一条横切的日志线；队列决定模型看到什么。</p>
+    <div class="links"><a class="primary" href="docs/diagrams/dsh-runtime.html">打开</a><a href="docs/diagrams/dsh-runtime.png">PNG</a></div>
+  </div>
+  <div class="card">
+    <h3>codex-runtime</h3>
+    <p>四层嵌套循环；队列、压缩、按需 MCP 都长在 turn 里。</p>
+    <div class="links"><a class="primary" href="docs/diagrams/codex-runtime.html">打开</a><a href="docs/diagrams/codex-runtime.png">PNG</a></div>
+  </div>
+  <div class="card">
+    <h3>claude-code-runtime</h3>
+    <p>只画文档与类型定义能证实的部分；不公开的不猜。</p>
+    <div class="links"><a class="primary" href="docs/diagrams/claude-code-runtime.html">打开</a><a href="docs/diagrams/claude-code-runtime.png">PNG</a></div>
+  </div>
+</div>
+
+<h2><span class="n">04</span> 子 agent 数据流</h2>
+<p class="note">一次「需要子 agent 的用户意图」走完整条链，看数据在哪一步被复制、在哪一步被丢掉。</p>
+<div class="grid">
+  <div class="card">
+    <h3>codex-subagent-flow</h3>
+    <p>spawn → 独立 Session 执行 → wait_agent → 只回一条字符串。</p>
+    <div class="links"><a class="primary" href="docs/diagrams/codex-subagent-flow.html">打开</a><a href="docs/diagrams/codex-subagent-flow.png">PNG</a></div>
+  </div>
+  <div class="card">
+    <h3>claude-code-subagent-flow</h3>
+    <p>按 <code>subagent_type</code> 装配全新上下文、裁工具、只回最终消息。</p>
+    <div class="links"><a class="primary" href="docs/diagrams/claude-code-subagent-flow.html">打开</a><a href="docs/diagrams/claude-code-subagent-flow.png">PNG</a></div>
+  </div>
+</div>
+
+<h2><span class="n">05</span> 横向对照</h2>
+<div class="grid">
+  <div class="card">
+    <h3>result-flow</h3>
+    <p>子 agent 的结果怎么回流到父级。三条泳道 × 四个阶段：完成 → 落在哪 → 谁触发 → 父看到什么。</p>
+    <div class="links"><a class="primary" href="docs/diagrams/result-flow.html">打开</a><a href="docs/diagrams/result-flow.png">PNG</a></div>
+  </div>
+  <div class="card">
+    <h3>codex-harness</h3>
+    <p>harness 到底是什么：圈里是记忆、安全、协作、接口；圈外是人和操作系统。</p>
+    <div class="links"><a class="primary" href="docs/diagrams/codex-harness.html">打开</a><a href="docs/diagrams/codex-harness.png">PNG</a></div>
+  </div>
+</div>
+
+<h2><span class="n">06</span> 归档</h2>
+<p class="note">被新版本取代的图，留着看演进。</p>
+<div class="grid">
+  <div class="card">
+    <h3>dsh-agent-loop</h3>
+    <p>最早的 DSH loop 流水线版，已被环形版 <code>dsh-loop</code> 取代。</p>
+    <div class="links"><a class="primary" href="docs/diagrams/archive/dsh-agent-loop.html">打开</a><a href="docs/diagrams/archive/dsh-agent-loop.png">PNG</a></div>
+  </div>
+</div>
+
+<footer>
+  图用 <a href="https://github.com/tt-a1i/archify">archify</a> 生成，源数据是 <code>docs/diagrams/*.json</code>，改完重跑 <code>archify finalize</code> 即可。<br>
+  本仓库是横向对照；单系统深挖见
+  <a href="https://webaifei.github.io/dsh-agent-loop-notes/">dsh-agent-loop-notes</a>、
+  <a href="https://webaifei.github.io/codex-agent-loop-notes/">codex-agent-loop-notes</a>、
+  <a href="https://webaifei.github.io/muse-architecture-notes/">muse-architecture-notes</a>。
+</footer>
+
+</div>
+</body>
+</html>
