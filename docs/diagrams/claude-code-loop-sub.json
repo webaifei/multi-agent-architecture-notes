@@ -1,0 +1,348 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Claude Code：主循环 + 子 agent",
+    "subtitle": "子 agent 跑的是同一个 query()；fork 开关下省略 subagent_type 会继承全部上下文",
+    "locale": "zh-CN",
+    "output": ".archify/arch-loops-with-subagent-20261010-193000/claude-code-loop-sub.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "mq",
+      "type": "messagebus",
+      "label": "SDK 输入流",
+      "sublabel": "stream-json 帧",
+      "pos": [
+        60,
+        150
+      ],
+      "size": [
+        165,
+        56
+      ]
+    },
+    {
+      "id": "mp",
+      "type": "backend",
+      "label": "上下文组装",
+      "sublabel": "系统提示三层",
+      "pos": [
+        380,
+        150
+      ],
+      "size": [
+        165,
+        56
+      ]
+    },
+    {
+      "id": "mm",
+      "type": "cloud",
+      "label": "Anthropic API",
+      "sublabel": "assistant 帧",
+      "pos": [
+        380,
+        400
+      ],
+      "size": [
+        165,
+        56
+      ]
+    },
+    {
+      "id": "mt",
+      "type": "backend",
+      "label": "工具执行",
+      "sublabel": "can_use_tool 反向批准",
+      "pos": [
+        60,
+        400
+      ],
+      "size": [
+        165,
+        56
+      ]
+    },
+    {
+      "id": "mlog",
+      "type": "database",
+      "label": "transcript JSONL",
+      "sublabel": "~/.claude/projects",
+      "pos": [
+        217,
+        275
+      ],
+      "size": [
+        170,
+        56
+      ]
+    },
+    {
+      "id": "cq",
+      "type": "messagebus",
+      "label": "AgentTool",
+      "sublabel": "选角色 或 隐式 fork",
+      "pos": [
+        720,
+        150
+      ],
+      "size": [
+        165,
+        56
+      ]
+    },
+    {
+      "id": "cp",
+      "type": "backend",
+      "label": "装配子 agent",
+      "sublabel": "独立 systemPrompt + 工具池",
+      "pos": [
+        1040,
+        150
+      ],
+      "size": [
+        165,
+        56
+      ]
+    },
+    {
+      "id": "cm",
+      "type": "cloud",
+      "label": "同一个 query()",
+      "sublabel": "queryLoop 复用",
+      "pos": [
+        1040,
+        400
+      ],
+      "size": [
+        165,
+        56
+      ]
+    },
+    {
+      "id": "ct",
+      "type": "backend",
+      "label": "只回最终报告",
+      "sublabel": "",
+      "pos": [
+        720,
+        400
+      ],
+      "size": [
+        165,
+        56
+      ]
+    },
+    {
+      "id": "clog",
+      "type": "database",
+      "label": "侧链记录",
+      "sublabel": "recordSidechainTranscript",
+      "pos": [
+        877,
+        275
+      ],
+      "size": [
+        170,
+        56
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "主 agent 循环：一圈 = 一次模型请求 + 它要求的工具",
+      "wraps": [
+        "mq",
+        "mp",
+        "mm",
+        "mt"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "子 agent：同一个 loop，另起一份会话",
+      "wraps": [
+        "cq",
+        "cp",
+        "cm",
+        "ct"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "r1",
+      "from": "mq",
+      "to": "mp",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "r2",
+      "from": "mp",
+      "to": "mm",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "r3",
+      "from": "mm",
+      "to": "mt",
+      "variant": "emphasis",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "r4",
+      "from": "mt",
+      "to": "mq",
+      "variant": "emphasis",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "l1",
+      "from": "mp",
+      "to": "mlog",
+      "variant": "dashed"
+    },
+    {
+      "id": "l2",
+      "from": "mm",
+      "to": "mlog",
+      "variant": "dashed"
+    },
+    {
+      "id": "l3",
+      "from": "mt",
+      "to": "mlog",
+      "variant": "dashed"
+    },
+    {
+      "id": "r5",
+      "from": "cq",
+      "to": "cp",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "r6",
+      "from": "cp",
+      "to": "cm",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "r7",
+      "from": "cm",
+      "to": "ct",
+      "variant": "emphasis",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "r8",
+      "from": "ct",
+      "to": "cq",
+      "variant": "emphasis",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "l4",
+      "from": "cp",
+      "to": "clog",
+      "variant": "dashed"
+    },
+    {
+      "id": "l5",
+      "from": "cm",
+      "to": "clog",
+      "variant": "dashed"
+    },
+    {
+      "id": "l6",
+      "from": "ct",
+      "to": "clog",
+      "variant": "dashed"
+    },
+    {
+      "id": "x1",
+      "from": "mt",
+      "to": "cq",
+      "variant": "emphasis",
+      "label": "Agent 工具（subagent_type；省略则隐式 fork）",
+      "fromSide": "bottom",
+      "toSide": "left",
+      "via": [
+        [
+          142.5,
+          500
+        ],
+        [
+          650,
+          500
+        ],
+        [
+          650,
+          178
+        ]
+      ]
+    },
+    {
+      "id": "x2",
+      "from": "ct",
+      "to": "mt",
+      "variant": "emphasis",
+      "label": "tool_result ← 只回最终报告",
+      "fromSide": "bottom",
+      "toSide": "bottom",
+      "via": [
+        [
+          802.5,
+          560
+        ],
+        [
+          142.5,
+          560
+        ]
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "orange",
+      "title": "子 agent 就是同一个循环",
+      "items": [
+        "runAgent() 直接调 query({ messages: initialMessages, systemPrompt, canUseTool, toolUseContext, maxTurns })",
+        "没有第二套循环实现；换的是初始 messages、systemPrompt、toolUseContext",
+        "每条子 agent 有侧链记录（recordSidechainTranscript）与 agent 元数据（agentType / worktreePath）"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "隐式 fork：文档没写的那条路",
+      "items": [
+        "FORK_SUBAGENT 开关打开且非 coordinator 模式时，subagent_type 变可选",
+        "省略它就触发 fork：子 agent 继承父级完整对话与系统提示词，maxTurns 200，model inherit",
+        "permissionMode: 'bubble' 把权限提示冒泡回父终端；/fork <directive> 是配套命令"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "为 prompt cache 做的工程",
+      "items": [
+        "fork 子 agent 拿父级完全相同的工具池（tools ['*'] + useExactTools），只为请求前缀字节一致",
+        "系统提示词透传父级已渲染的字节，不重新生成——重算可能因开关冷热切换而打破缓存",
+        "所有 fork 子 agent 的 tool_result 占位文本相同，只有末尾 directive 不同；递归靠检测历史里的 fork 标记来挡"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,348 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "DSH：主循环 + 子 agent",
+    "subtitle": "子 agent 是接缝上的一个 provider；工具层再起一个同样的环，只回最后一条消息",
+    "locale": "zh-CN",
+    "output": ".archify/arch-loops-with-subagent-20261010-193000/dsh-loop-sub.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "mq",
+      "type": "messagebus",
+      "label": "Inbox",
+      "sublabel": "next-turn + next-step",
+      "pos": [
+        60,
+        150
+      ],
+      "size": [
+        165,
+        56
+      ]
+    },
+    {
+      "id": "mp",
+      "type": "backend",
+      "label": "preStep",
+      "sublabel": "claim · 组装 · waterfall",
+      "pos": [
+        380,
+        150
+      ],
+      "size": [
+        165,
+        56
+      ]
+    },
+    {
+      "id": "mm",
+      "type": "cloud",
+      "label": "LLM",
+      "sublabel": "llm.stream()",
+      "pos": [
+        380,
+        400
+      ],
+      "size": [
+        165,
+        56
+      ]
+    },
+    {
+      "id": "mt",
+      "type": "backend",
+      "label": "executeToolCalls",
+      "sublabel": "按 executionMode 分组",
+      "pos": [
+        60,
+        400
+      ],
+      "size": [
+        165,
+        56
+      ]
+    },
+    {
+      "id": "mlog",
+      "type": "database",
+      "label": "session.append",
+      "sublabel": "每一步的落点",
+      "pos": [
+        217,
+        275
+      ],
+      "size": [
+        170,
+        56
+      ]
+    },
+    {
+      "id": "cq",
+      "type": "messagebus",
+      "label": "新 Session",
+      "sublabel": "自己的 messages + 日志",
+      "pos": [
+        720,
+        150
+      ],
+      "size": [
+        165,
+        56
+      ]
+    },
+    {
+      "id": "cp",
+      "type": "backend",
+      "label": "装配子 agent",
+      "sublabel": "systemPrompt + 工具裁剪",
+      "pos": [
+        1040,
+        150
+      ],
+      "size": [
+        165,
+        56
+      ]
+    },
+    {
+      "id": "cm",
+      "type": "cloud",
+      "label": "LLM",
+      "sublabel": "同一个 runAgent",
+      "pos": [
+        1040,
+        400
+      ],
+      "size": [
+        165,
+        56
+      ]
+    },
+    {
+      "id": "ct",
+      "type": "backend",
+      "label": "返回",
+      "sublabel": "只回最后一条消息",
+      "pos": [
+        720,
+        400
+      ],
+      "size": [
+        165,
+        56
+      ]
+    },
+    {
+      "id": "clog",
+      "type": "database",
+      "label": "独立 JSONL",
+      "sublabel": "子会话自己的日志",
+      "pos": [
+        877,
+        275
+      ],
+      "size": [
+        170,
+        56
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "主 agent 循环：一圈 = 一次模型请求 + 它要求的工具",
+      "wraps": [
+        "mq",
+        "mp",
+        "mm",
+        "mt"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "子 agent：同一个 loop，另起一份会话",
+      "wraps": [
+        "cq",
+        "cp",
+        "cm",
+        "ct"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "r1",
+      "from": "mq",
+      "to": "mp",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "r2",
+      "from": "mp",
+      "to": "mm",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "r3",
+      "from": "mm",
+      "to": "mt",
+      "variant": "emphasis",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "r4",
+      "from": "mt",
+      "to": "mq",
+      "variant": "emphasis",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "l1",
+      "from": "mp",
+      "to": "mlog",
+      "variant": "dashed"
+    },
+    {
+      "id": "l2",
+      "from": "mm",
+      "to": "mlog",
+      "variant": "dashed"
+    },
+    {
+      "id": "l3",
+      "from": "mt",
+      "to": "mlog",
+      "variant": "dashed"
+    },
+    {
+      "id": "r5",
+      "from": "cq",
+      "to": "cp",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "r6",
+      "from": "cp",
+      "to": "cm",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "r7",
+      "from": "cm",
+      "to": "ct",
+      "variant": "emphasis",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "r8",
+      "from": "ct",
+      "to": "cq",
+      "variant": "emphasis",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "l4",
+      "from": "cp",
+      "to": "clog",
+      "variant": "dashed"
+    },
+    {
+      "id": "l5",
+      "from": "cm",
+      "to": "clog",
+      "variant": "dashed"
+    },
+    {
+      "id": "l6",
+      "from": "ct",
+      "to": "clog",
+      "variant": "dashed"
+    },
+    {
+      "id": "x1",
+      "from": "mt",
+      "to": "cq",
+      "variant": "emphasis",
+      "label": "spawn_agent（能力接缝：provider 按名字选）",
+      "fromSide": "bottom",
+      "toSide": "left",
+      "via": [
+        [
+          142.5,
+          500
+        ],
+        [
+          650,
+          500
+        ],
+        [
+          650,
+          178
+        ]
+      ]
+    },
+    {
+      "id": "x2",
+      "from": "ct",
+      "to": "mt",
+      "variant": "emphasis",
+      "label": "splice 回 next-step：只回最后一条消息",
+      "fromSide": "bottom",
+      "toSide": "bottom",
+      "via": [
+        [
+          802.5,
+          560
+        ],
+        [
+          142.5,
+          560
+        ]
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "子 agent 在 DSH 里是什么",
+      "items": [
+        "不是一条写死的路径，是 ctx.subagents 上按名字注册的 provider：spawn / fork / acp / codex / claude-code / dsh-sdk",
+        "工具层一个 provider 一个 toolName，模型看到的是静态工具，不是 provider 选择器",
+        "start() 之前先 assertCapabilities：缺能力直接 UNSUPPORTED_CAPABILITY，不静默降级"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "子会话从哪来",
+      "items": [
+        "spawn provider 的 prepareContinuable 返回空 seed；fork provider 返回父级已完成回合的前缀",
+        "两者共用同一个 agent-loop，只是初始 messages 不同",
+        "continuable 子 agent 的冷恢复不经过 provider，由 continuation manager 调 ctx.agents.resume()"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "结果怎么回来",
+      "items": [
+        "只回最后一条消息，中间过程留在子会话自己的 JSONL",
+        "executeToolCalls 的 acceptContext 把上下文 splice 回 inbox 的 next-step，和用户插话同一条队列",
+        "send_message / interrupt_agent / list_agents 是另外三个控制工具"
+      ]
+    }
+  ]
+}

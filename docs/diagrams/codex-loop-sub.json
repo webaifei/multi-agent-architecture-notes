@@ -1,0 +1,348 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Codex：主循环 + 子 agent",
+    "subtitle": "子 agent 是进程内新 Session；结果靠 wait_agent 订阅到终态",
+    "locale": "zh-CN",
+    "output": ".archify/arch-loops-with-subagent-20261010-193000/codex-loop-sub.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "mq",
+      "type": "messagebus",
+      "label": "InputQueue",
+      "sublabel": "Mailbox + Steer",
+      "pos": [
+        60,
+        150
+      ],
+      "size": [
+        165,
+        56
+      ]
+    },
+    {
+      "id": "mp",
+      "type": "backend",
+      "label": "run_turn 步进",
+      "sublabel": "取输入 · 记录 · 压缩",
+      "pos": [
+        380,
+        150
+      ],
+      "size": [
+        165,
+        56
+      ]
+    },
+    {
+      "id": "mm",
+      "type": "cloud",
+      "label": "client.stream()",
+      "sublabel": "四层里的第三层",
+      "pos": [
+        380,
+        400
+      ],
+      "size": [
+        165,
+        56
+      ]
+    },
+    {
+      "id": "mt",
+      "type": "backend",
+      "label": "ToolCallRuntime",
+      "sublabel": "审批 + 沙箱",
+      "pos": [
+        60,
+        400
+      ],
+      "size": [
+        165,
+        56
+      ]
+    },
+    {
+      "id": "mlog",
+      "type": "database",
+      "label": "rollout JSONL",
+      "sublabel": "resume 靠它",
+      "pos": [
+        217,
+        275
+      ],
+      "size": [
+        170,
+        56
+      ]
+    },
+    {
+      "id": "cq",
+      "type": "messagebus",
+      "label": "AgentControl::spawn",
+      "sublabel": "spawn_agent 的真实入口",
+      "pos": [
+        720,
+        150
+      ],
+      "size": [
+        165,
+        56
+      ]
+    },
+    {
+      "id": "cp",
+      "type": "backend",
+      "label": "新 Session",
+      "sublabel": "自己的 SessionIo 通道",
+      "pos": [
+        1040,
+        150
+      ],
+      "size": [
+        165,
+        56
+      ]
+    },
+    {
+      "id": "cm",
+      "type": "cloud",
+      "label": "同一个 core 循环",
+      "sublabel": "四层循环复用",
+      "pos": [
+        1040,
+        400
+      ],
+      "size": [
+        165,
+        56
+      ]
+    },
+    {
+      "id": "ct",
+      "type": "backend",
+      "label": "Completed",
+      "sublabel": "last_agent_message",
+      "pos": [
+        720,
+        400
+      ],
+      "size": [
+        165,
+        56
+      ]
+    },
+    {
+      "id": "clog",
+      "type": "database",
+      "label": "子会话 rollout",
+      "sublabel": "独立的 JSONL",
+      "pos": [
+        877,
+        275
+      ],
+      "size": [
+        170,
+        56
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "主 agent 循环：一圈 = 一次模型请求 + 它要求的工具",
+      "wraps": [
+        "mq",
+        "mp",
+        "mm",
+        "mt"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "子 agent：同一个 loop，另起一份会话",
+      "wraps": [
+        "cq",
+        "cp",
+        "cm",
+        "ct"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "r1",
+      "from": "mq",
+      "to": "mp",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "r2",
+      "from": "mp",
+      "to": "mm",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "r3",
+      "from": "mm",
+      "to": "mt",
+      "variant": "emphasis",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "r4",
+      "from": "mt",
+      "to": "mq",
+      "variant": "emphasis",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "l1",
+      "from": "mp",
+      "to": "mlog",
+      "variant": "dashed"
+    },
+    {
+      "id": "l2",
+      "from": "mm",
+      "to": "mlog",
+      "variant": "dashed"
+    },
+    {
+      "id": "l3",
+      "from": "mt",
+      "to": "mlog",
+      "variant": "dashed"
+    },
+    {
+      "id": "r5",
+      "from": "cq",
+      "to": "cp",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "r6",
+      "from": "cp",
+      "to": "cm",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "r7",
+      "from": "cm",
+      "to": "ct",
+      "variant": "emphasis",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "r8",
+      "from": "ct",
+      "to": "cq",
+      "variant": "emphasis",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "l4",
+      "from": "cp",
+      "to": "clog",
+      "variant": "dashed"
+    },
+    {
+      "id": "l5",
+      "from": "cm",
+      "to": "clog",
+      "variant": "dashed"
+    },
+    {
+      "id": "l6",
+      "from": "ct",
+      "to": "clog",
+      "variant": "dashed"
+    },
+    {
+      "id": "x1",
+      "from": "mt",
+      "to": "cq",
+      "variant": "emphasis",
+      "label": "spawn_agent（进程内新 Session，受深度与并发上限）",
+      "fromSide": "bottom",
+      "toSide": "left",
+      "via": [
+        [
+          142.5,
+          500
+        ],
+        [
+          650,
+          500
+        ],
+        [
+          650,
+          178
+        ]
+      ]
+    },
+    {
+      "id": "x2",
+      "from": "ct",
+      "to": "mt",
+      "variant": "emphasis",
+      "label": "wait_agent 订阅到 Completed",
+      "fromSide": "bottom",
+      "toSide": "bottom",
+      "via": [
+        [
+          802.5,
+          560
+        ],
+        [
+          142.5,
+          560
+        ]
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "子 agent 怎么被创建",
+      "items": [
+        "spawn_agent 走 AgentControl::spawn → spawn_agent_internal；codex_delegate.rs 只服务 Review 任务，不是这条路径",
+        "进程内新 Session + 自己的 SessionIo，事件由 tokio 任务桥接",
+        "三道闸：深度上限、并发上限 reserve_spawn_slot、委派前 approval_policy 必须是 never"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "身份与通信",
+      "items": [
+        "SessionSource::SubAgent(ThreadSpawn{ parent_thread_id, depth, agent_path, agent_nickname, agent_role })",
+        "每个 agent 一个邮箱（InterAgentCommunication），另有按会话树隔离的消息板",
+        "V2 工具族：spawn_agent / send_message / followup_task / wait_agent / interrupt_agent / list_agents"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "结果怎么回来",
+      "items": [
+        "wait_agent 订阅状态到终态，拿 AgentStatus::Completed(last_agent_message)",
+        "中间工具流量留在子会话，父级只多一条字符串",
+        "send_message 是 QueueOnly（只排队不打断），followup_task 才触发新回合"
+      ]
+    }
+  ]
+}
