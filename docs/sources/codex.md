@@ -13,7 +13,8 @@
 | 来源 | 是什么 |
 | --- | --- |
 | `openai/codex` → `codex-rs/core/src/agent/`（`control/`、`registry.rs`、`role.rs`、`status.rs`） | Codex 子 agent 的注册表、生命周期、状态 |
-| `codex-rs/core/src/codex_delegate.rs` | spawn 一个子 agent 的真实入口 |
+| `codex-rs/core/src/agent/control/spawn.rs` | `spawn_agent` 工具的真实入口：`AgentControl::spawn`（:278）→ `spawn_agent_internal`（:676） |
+| `codex-rs/core/src/codex_delegate.rs` | ⚠️ **不是** `spawn_agent` 的路径。它只被 `tasks/review.rs:128` 以 `SubAgentSource::Review` 调用（见下方更正） |
 | `codex-rs/core/src/tools/handlers/multi_agents_spec.rs`、`multi_agents_v2/` | 暴露给模型的协作工具 |
 | `codex-rs/core/src/agent/control/mailbox.rs`、`agent_message_board.rs` | 邮箱与共享消息板 |
 | `codex-rs/rollout/src/lib.rs` | 会话落盘（JSONL）格式与路径 |
@@ -41,8 +42,14 @@
 
 ### 2. 子 agent 怎么被创建：进程内，不是子进程
 
-**[源码]** `codex_delegate.rs` / `run_codex_thread_interactive`：调用 `Session::spawn(SessionSpawnArgs{…})`，
-**在同一个进程里**返回一个新的 `Session` 和它自己的 `SessionIo` 通道，再用 tokio 任务做 `forward_session_io` 桥接事件。
+> ⚠️ **2026-10-10 更正**：本页第一版把 `codex_delegate.rs` 写成了 `spawn_agent` 的入口，这是错的。
+> `codex_delegate.rs` 只被 `tasks/review.rs:128` 以 `SubAgentSource::Review` 调用，而且要求
+> approval policy 必须是 `never`（`codex_delegate.rs:69`）——它是**审查任务**的子 agent 路径。
+> 多 agent 的 `spawn_agent` 工具走 `AgentControl::spawn`（`agent/control/spawn.rs:278`）
+> → `spawn_agent_internal`（`:676`）。
+
+**[源码]** 创建出来的子会话**在同一个进程里**，有它自己的 `SessionIo` 通道，
+事件由 tokio 任务桥接转发（`forward_session_io` 一类的接线）。
 
 **[源码]** 身份表示：`SessionSource::SubAgent(SubAgentSource::ThreadSpawn { parent_thread_id, depth, agent_path, agent_nickname, agent_role })`。
 
@@ -139,6 +146,9 @@
 
 ## 待核实
 
+- [ ] `spawn_agent_internal` 之后子会话启动的完整路径；子代理首条输入如何变成 `Op::TurnInput`；
+- [ ] V2 多代理路径（`tools/handlers/multi_agents_v2/`）未逐行读，现有结论只覆盖 V1；
+- [ ] `RolloutRecorder` 与 `LiveThread` 两条写入路径的分工；
 - [ ] `agents.max_concurrent_threads_per_session` 的默认值（文档只说「Codex 自己决定」）；
-- [ ] 未实际运行 CLI，进程内/线程的判断来自 `codex_delegate.rs` 源码阅读；
+- [ ] 未实际运行 CLI；「子 agent 在进程内」的判断来自 `agent/control/spawn.rs` 的源码阅读，未确认 `spawn_agent_internal` 之后是直接 `Session::spawn` 还是经 ThreadManager `start_thread`；
 - [ ] 某个具体构建里远端 agent 后端是否启用（`AgentControlInit::Local` vs 外部注入）未完全追踪。

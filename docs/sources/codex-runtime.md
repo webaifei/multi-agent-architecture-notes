@@ -117,17 +117,17 @@
 
 ### 2.4 第四层：`run_sampling_request` 自身的重试循环
 
-- `codex-rs/core/src/session/turn.rs:1640` `loop {`；它包住 `try_run_sampling_request`（`:1662`）。
+- `codex-rs/core/src/session/turn.rs:1640` `loop {`；它包住 `try_run_sampling_request`（`:1673`）。
 - **退出条件**：
   1. 采样成功：`codex-rs/core/src/session/turn.rs:1686-1687` `Ok(output) => {` / `return Ok((output, original_input.unwrap_or(prompt.input)));`
   2. 取消：`codex-rs/core/src/session/turn.rs:1720-1721` `return Err(CodexErr::TurnAborted);`
   3. preempt：`codex-rs/core/src/session/turn.rs:1722-1727` 返回 `needs_follow_up: true`。
-  4. 否则调用 `handle_response_stream_error` 重试（`:1702`）。
-- **继续条件**：`retry??` 成功后 `codex-rs/core/src/session/turn.rs:1731` `turn_context.turn_timing_state.record_sampling_retry();`，回到循环顶部。
+  4. 否则调用 `handle_response_stream_error` 重试（`:1707`）。
+- **继续条件**：`retry??` 成功后 `codex-rs/core/src/session/turn.rs:1732` `turn_context.turn_timing_state.record_sampling_retry();`，回到循环顶部。
 
 ### 2.5 循环间关系与常见数错点
 
-- 四层共享同一个 `CancellationToken`：第 1 层由 `start_task` 创建（`codex-rs/core/src/tasks/mod.rs:312`），向下逐层 `child_token()`。
+- 四层共享同一个 `CancellationToken`：第 1 层由 `start_task` 创建（`codex-rs/core/src/tasks/mod.rs:312`），随后逐层 `child_token()`：`codex-rs/core/src/tasks/regular.rs:111` → `codex-rs/core/src/session/turn.rs:539` → `:1682` → `:2746`。
 - 「`client.stream` 在 425 附近」与源码不符：425 是 `run_turn` 的步进循环，`client.stream` 在 2565，流循环在 2611。
 
 ---
