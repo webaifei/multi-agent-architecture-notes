@@ -1,0 +1,229 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "DSH 的 agent loop 真实顺序",
+    "subtitle": "inbox → 组装 → 模型 → 工具 → 回队列；session 是横切面，不在链条上",
+    "locale": "zh-CN",
+    "output": ".archify/workflow-dsh-loop-20261010-152000/dsh-loop.html",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "entry",
+      "label": "输入与队列"
+    },
+    {
+      "id": "driver",
+      "label": "驱动器 agent-loop"
+    },
+    {
+      "id": "tools",
+      "label": "工具"
+    },
+    {
+      "id": "log",
+      "label": "Session 日志（横切）",
+      "variant": "exception"
+    }
+  ],
+  "mainPath": [
+    "human",
+    "inbox",
+    "prestep",
+    "step",
+    "llm",
+    "toolcall",
+    "tools"
+  ],
+  "nodes": [
+    {
+      "id": "human",
+      "lane": "entry",
+      "col": 0,
+      "type": "external",
+      "label": "人",
+      "sublabel": "一次输入",
+      "width": 130
+    },
+    {
+      "id": "inbox",
+      "lane": "entry",
+      "col": 1,
+      "type": "messagebus",
+      "label": "Inbox",
+      "sublabel": "next-turn + next-step",
+      "width": 150
+    },
+    {
+      "id": "prestep",
+      "lane": "driver",
+      "col": 2,
+      "type": "backend",
+      "label": "preStep",
+      "sublabel": "claim · 组装 · waterfall",
+      "width": 150
+    },
+    {
+      "id": "step",
+      "lane": "driver",
+      "col": 3,
+      "type": "backend",
+      "label": "step",
+      "sublabel": "prepareRequest",
+      "width": 130
+    },
+    {
+      "id": "llm",
+      "lane": "driver",
+      "col": 4,
+      "type": "cloud",
+      "label": "LLM",
+      "sublabel": "llm.stream()",
+      "width": 130
+    },
+    {
+      "id": "toolcall",
+      "lane": "driver",
+      "col": 5,
+      "type": "backend",
+      "label": "看有没有 tool_call",
+      "sublabel": "没有就 turn 结束",
+      "width": 160
+    },
+    {
+      "id": "tools",
+      "lane": "tools",
+      "col": 5,
+      "type": "backend",
+      "label": "executeToolCalls",
+      "sublabel": "并发分组 · 过闸",
+      "width": 150
+    },
+    {
+      "id": "logturn",
+      "lane": "log",
+      "col": 2,
+      "type": "database",
+      "label": "turn/start · step/start",
+      "sublabel": "每个动作都落盘",
+      "width": 160
+    },
+    {
+      "id": "logmsg",
+      "lane": "log",
+      "col": 4,
+      "type": "database",
+      "label": "user / assistant message",
+      "sublabel": "模型可见即落盘",
+      "width": 170
+    },
+    {
+      "id": "logtool",
+      "lane": "log",
+      "col": 5,
+      "type": "database",
+      "label": "tool/result",
+      "sublabel": "结果与证据",
+      "width": 140
+    }
+  ],
+  "edges": [
+    {
+      "id": "human-inbox",
+      "from": "human",
+      "to": "inbox",
+      "label": "排队",
+      "variant": "default"
+    },
+    {
+      "id": "inbox-prestep",
+      "from": "inbox",
+      "to": "prestep",
+      "label": "claim(target)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "prestep-step",
+      "from": "prestep",
+      "to": "step",
+      "label": "messages 装好",
+      "variant": "default"
+    },
+    {
+      "id": "step-llm",
+      "from": "step",
+      "to": "llm",
+      "label": "发请求",
+      "variant": "emphasis"
+    },
+    {
+      "id": "llm-toolcall",
+      "from": "llm",
+      "to": "toolcall",
+      "label": "流式回答",
+      "variant": "default"
+    },
+    {
+      "id": "toolcall-tools",
+      "from": "toolcall",
+      "to": "tools",
+      "label": "有 tool_call",
+      "variant": "emphasis"
+    },
+    {
+      "id": "tools-inbox",
+      "from": "tools",
+      "to": "inbox",
+      "label": "结果与上下文 splice 回 next-step",
+      "variant": "emphasis",
+      "role": "return"
+    },
+    {
+      "id": "prestep-log",
+      "from": "prestep",
+      "to": "logturn",
+      "variant": "dashed"
+    },
+    {
+      "id": "llm-log",
+      "from": "llm",
+      "to": "logmsg",
+      "variant": "dashed"
+    },
+    {
+      "id": "tools-log",
+      "from": "tools",
+      "to": "logtool",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "两处和直觉不一样",
+      "items": [
+        "session 不是链条上的一环，是横切面：turn/start、step/start、user/message、assistant/message、tool/result 每一步都 append",
+        "工具结果不是直接回给模型的，而是 splice 回 inbox 的 next-step 队列，下一轮 preStep 再 claim 出来"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "inbox 有两个队列",
+      "items": [
+        "next-turn：等到下一个 turn 才处理，用来排队新输入",
+        "next-step：当前 step 结束后立刻插入，用来插话（steering）和回填工具上下文",
+        "第一个 step 取 next-turn，之后 target 切成 next-step"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "一个 step 是什么",
+      "items": [
+        "一个 step = 一次模型请求 + 它要求的那些工具执行",
+        "工具执行完回到 step 循环顶部，再 claim 一次 inbox，形成回环",
+        "preStep 里留了 agent/pre-step waterfall，插件可以在发请求之前改写甚至拒绝"
+      ]
+    }
+  ]
+}
