@@ -1,0 +1,215 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Codex 的运行时：实现与逻辑",
+    "subtitle": "三层循环；队列 + 压缩 + 按需 MCP 都长在 turn 里",
+    "locale": "zh-CN",
+    "output": ".archify/workflow-three-runtimes-20261010-153000/codex-runtime.html",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "entry",
+      "label": "输入与队列"
+    },
+    {
+      "id": "driver",
+      "label": "会话任务 SessionTask"
+    },
+    {
+      "id": "tools",
+      "label": "工具与安全"
+    },
+    {
+      "id": "log",
+      "label": "rollout 日志（横切）",
+      "variant": "exception"
+    }
+  ],
+  "mainPath": [
+    "human",
+    "queue",
+    "prep",
+    "step",
+    "llm",
+    "decide",
+    "toolrun"
+  ],
+  "nodes": [
+    {
+      "id": "human",
+      "lane": "entry",
+      "col": 0,
+      "type": "external",
+      "label": "人",
+      "sublabel": "一次提交",
+      "width": 120
+    },
+    {
+      "id": "queue",
+      "lane": "entry",
+      "col": 1,
+      "type": "messagebus",
+      "label": "InputQueue",
+      "sublabel": "pending + mailbox",
+      "width": 155
+    },
+    {
+      "id": "prep",
+      "lane": "driver",
+      "col": 2,
+      "type": "backend",
+      "label": "run_turn 开场",
+      "sublabel": "压缩 · 记录输入 · 备 MCP",
+      "width": 165
+    },
+    {
+      "id": "step",
+      "lane": "driver",
+      "col": 3,
+      "type": "backend",
+      "label": "采样请求",
+      "sublabel": "capture step context",
+      "width": 150
+    },
+    {
+      "id": "llm",
+      "lane": "driver",
+      "col": 4,
+      "type": "cloud",
+      "label": "模型流",
+      "sublabel": "client.stream()",
+      "width": 130
+    },
+    {
+      "id": "decide",
+      "lane": "driver",
+      "col": 5,
+      "type": "backend",
+      "label": "needs_follow_up",
+      "sublabel": "模型要 或 队列有",
+      "width": 150
+    },
+    {
+      "id": "toolrun",
+      "lane": "tools",
+      "col": 5,
+      "type": "backend",
+      "label": "ToolCallRuntime",
+      "sublabel": "审批 · 沙箱",
+      "width": 150
+    },
+    {
+      "id": "logmsg",
+      "lane": "log",
+      "col": 4,
+      "type": "database",
+      "label": "response items",
+      "sublabel": "assistant / tool 记录",
+      "width": 170
+    },
+    {
+      "id": "logtool",
+      "lane": "log",
+      "col": 5,
+      "type": "database",
+      "label": "rollout JSONL",
+      "sublabel": "可 resume",
+      "width": 140
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "human",
+      "to": "queue",
+      "variant": "default",
+      "label": "排队"
+    },
+    {
+      "id": "e2",
+      "from": "queue",
+      "to": "prep",
+      "variant": "emphasis",
+      "label": "get_pending_input"
+    },
+    {
+      "id": "e3",
+      "from": "prep",
+      "to": "step",
+      "variant": "default",
+      "label": "上下文就绪"
+    },
+    {
+      "id": "e4",
+      "from": "step",
+      "to": "llm",
+      "variant": "emphasis",
+      "label": "发请求"
+    },
+    {
+      "id": "e5",
+      "from": "llm",
+      "to": "decide",
+      "variant": "default",
+      "label": "流式事件"
+    },
+    {
+      "id": "e6",
+      "from": "decide",
+      "to": "toolrun",
+      "variant": "emphasis",
+      "label": "模型要跟"
+    },
+    {
+      "id": "e7",
+      "from": "toolrun",
+      "to": "queue",
+      "variant": "emphasis",
+      "label": "结果与 steer 输入回队列",
+      "role": "return"
+    },
+    {
+      "id": "e9",
+      "from": "llm",
+      "to": "logmsg",
+      "variant": "dashed"
+    },
+    {
+      "id": "e10",
+      "from": "toolrun",
+      "to": "logtool",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "外层循环与任务分层",
+      "items": [
+        "RegularTask::run 里 loop { run_turn(..) }，队列没活就收工",
+        "turn 不只一种：Regular / Compact / Review / UserShell，各走各的驱动",
+        "run_turn 的开场是压缩、记录输入、按输入拉起 MCP"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "回合内继续的条件",
+      "items": [
+        "needs_follow_up = model_needs_follow_up || has_pending_input",
+        "每一圈采样前先 get_pending_input，把插话记成 SteeredUserInput",
+        "压缩写在 run_turn 开头，所以每个提前返回点都要补一次输入落盘"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "工具与安全",
+      "items": [
+        "工具走 ToolCallRuntime，命令审批和补丁审批是两个入口",
+        "沙箱 read-only / workspace-write / danger-full-access 由 OS 强制",
+        "会话落成 rollout JSONL，codex resume 靠它重建历史"
+      ]
+    }
+  ]
+}

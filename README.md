@@ -59,7 +59,11 @@ multi-agent-lab/
 ### 第 0 章 · 概念
 
 - [x] `docs/00-concepts.md`：agent / loop / context / tool / 四个核心问题
-- [x] `docs/sources/`：Codex 与 Claude Code 的一手来源核对（含「待核实」清单）
+- [x] `docs/sources/`：一手来源与运行时追踪
+  - `codex.md` —— Codex 多 agent 的协议、权限、会话
+  - `codex-runtime.md` —— Codex 主循环的源码追踪（含循环与退出条件）
+  - `claude-code.md` / `claude-code-runtime.md` —— Claude Code 的可观察边界
+  - `dsh-runtime.md` —— DSH agent loop 的源码追踪
 
 ### 第 1 章 · Codex 式（独立会话 + 工具优先）
 

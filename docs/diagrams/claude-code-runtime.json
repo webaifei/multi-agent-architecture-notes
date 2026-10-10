@@ -1,0 +1,229 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Claude Code 的运行时：可观察链路",
+    "subtitle": "只画文档与类型定义能证实的部分；不公开的不猜",
+    "locale": "zh-CN",
+    "output": ".archify/workflow-three-runtimes-20261010-153000/claude-code-runtime.html",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "entry",
+      "label": "输入与队列"
+    },
+    {
+      "id": "driver",
+      "label": "CLI 会话"
+    },
+    {
+      "id": "tools",
+      "label": "工具与权限"
+    },
+    {
+      "id": "log",
+      "label": "会话记录（横切）",
+      "variant": "exception"
+    }
+  ],
+  "mainPath": [
+    "human",
+    "queue",
+    "prep",
+    "step",
+    "llm",
+    "decide",
+    "toolrun"
+  ],
+  "nodes": [
+    {
+      "id": "human",
+      "lane": "entry",
+      "col": 0,
+      "type": "external",
+      "label": "人",
+      "sublabel": "一次 prompt",
+      "width": 120
+    },
+    {
+      "id": "queue",
+      "lane": "entry",
+      "col": 1,
+      "type": "messagebus",
+      "label": "SDK 输入流",
+      "sublabel": "stream-json",
+      "width": 150
+    },
+    {
+      "id": "prep",
+      "lane": "driver",
+      "col": 2,
+      "type": "backend",
+      "label": "上下文组装",
+      "sublabel": "系统提示三层 + CLAUDE.md",
+      "width": 175
+    },
+    {
+      "id": "step",
+      "lane": "driver",
+      "col": 3,
+      "type": "backend",
+      "label": "query 一轮",
+      "sublabel": "num_turns 计模型往返",
+      "width": 165
+    },
+    {
+      "id": "llm",
+      "lane": "driver",
+      "col": 4,
+      "type": "cloud",
+      "label": "Anthropic API",
+      "sublabel": "assistant 帧",
+      "width": 140
+    },
+    {
+      "id": "decide",
+      "lane": "driver",
+      "col": 5,
+      "type": "backend",
+      "label": "有 tool_use 吗",
+      "sublabel": "没有就发 result",
+      "width": 150
+    },
+    {
+      "id": "toolrun",
+      "lane": "tools",
+      "col": 5,
+      "type": "backend",
+      "label": "工具执行",
+      "sublabel": "can_use_tool 反向 RPC",
+      "width": 165
+    },
+    {
+      "id": "logturn",
+      "lane": "log",
+      "col": 2,
+      "type": "database",
+      "label": "system/init",
+      "sublabel": "每轮开头重发",
+      "width": 160
+    },
+    {
+      "id": "logmsg",
+      "lane": "log",
+      "col": 4,
+      "type": "database",
+      "label": "transcript JSONL",
+      "sublabel": "~/.claude/projects/*",
+      "width": 170
+    },
+    {
+      "id": "logtool",
+      "lane": "log",
+      "col": 5,
+      "type": "database",
+      "label": "result 帧",
+      "sublabel": "usage · permission_denials",
+      "width": 140
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "human",
+      "to": "queue",
+      "variant": "default"
+    },
+    {
+      "id": "e2",
+      "from": "queue",
+      "to": "prep",
+      "variant": "emphasis",
+      "label": "用户帧"
+    },
+    {
+      "id": "e3",
+      "from": "prep",
+      "to": "step",
+      "variant": "default",
+      "label": "提示词就绪"
+    },
+    {
+      "id": "e4",
+      "from": "step",
+      "to": "llm",
+      "variant": "emphasis",
+      "label": "发请求"
+    },
+    {
+      "id": "e5",
+      "from": "llm",
+      "to": "decide",
+      "variant": "default",
+      "label": "assistant 帧"
+    },
+    {
+      "id": "e6",
+      "from": "decide",
+      "to": "toolrun",
+      "variant": "emphasis",
+      "label": "有 tool_use"
+    },
+    {
+      "id": "e7",
+      "from": "toolrun",
+      "to": "queue",
+      "variant": "security",
+      "label": "CLI 反向要批准，SDK 回 allow / deny",
+      "role": "return"
+    },
+    {
+      "id": "e8",
+      "from": "prep",
+      "to": "logturn",
+      "variant": "dashed"
+    },
+    {
+      "id": "e9",
+      "from": "llm",
+      "to": "logmsg",
+      "variant": "dashed"
+    },
+    {
+      "id": "e10",
+      "from": "toolrun",
+      "to": "logtool",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "orange",
+      "title": "这份图只画可观察的部分",
+      "items": [
+        "CLI 现在是编译后的原生二进制，没有可读源码；四层可读材料是官方文档、SDK 的 .d.ts、Python SDK 源码、npm 元数据",
+        "循环内部、压缩算法、系统提示完整分节、auto 阈值都不公开，图上不画",
+        "所有边都对应文档或类型定义里能查到的事实"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "一轮是什么",
+      "items": [
+        "一轮 = 一次用户输入到一条 result；result.num_turns 是轮内模型往返次数，不是轮数",
+        "system/init 每轮开头重发，带 session_id、tools、permissionMode、capabilities",
+        "session_id 几乎出现在每条帧上，--resume / --continue / --fork-session 控制续写与分叉"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "权限与 hook 是反向请求",
+      "items": [
+        "工具要批准时，是 CLI 反向发 can_use_tool 控制请求，SDK 回 allow / deny",
+        "hook 同理：CLI 发 hook_callback，SDK 执行本地函数再回结果",
+        "拒绝有三层表示，权威记录是 result.permission_denials"
+      ]
+    }
+  ]
+}

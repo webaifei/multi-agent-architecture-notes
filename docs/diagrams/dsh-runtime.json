@@ -1,0 +1,215 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "DSH 的运行时：实现与逻辑",
+    "subtitle": "三个循环 + 一条横切的日志线；队列决定模型看到什么",
+    "locale": "zh-CN",
+    "output": ".archify/workflow-three-runtimes-20261010-153000/dsh-runtime.html",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "entry",
+      "label": "输入与队列"
+    },
+    {
+      "id": "driver",
+      "label": "运行时 agent-loop"
+    },
+    {
+      "id": "tools",
+      "label": "工具"
+    },
+    {
+      "id": "log",
+      "label": "Session 日志（横切）",
+      "variant": "exception"
+    }
+  ],
+  "mainPath": [
+    "human",
+    "inbox",
+    "prestep",
+    "step",
+    "llm",
+    "decide",
+    "toolrun"
+  ],
+  "nodes": [
+    {
+      "id": "human",
+      "lane": "entry",
+      "col": 0,
+      "type": "external",
+      "label": "人",
+      "sublabel": "一次输入",
+      "width": 120
+    },
+    {
+      "id": "inbox",
+      "lane": "entry",
+      "col": 1,
+      "type": "messagebus",
+      "label": "Inbox",
+      "sublabel": "next-turn + next-step",
+      "width": 155
+    },
+    {
+      "id": "prestep",
+      "lane": "driver",
+      "col": 2,
+      "type": "backend",
+      "label": "preStep",
+      "sublabel": "claim · 组装 · waterfall",
+      "width": 160
+    },
+    {
+      "id": "step",
+      "lane": "driver",
+      "col": 3,
+      "type": "backend",
+      "label": "step",
+      "sublabel": "prepareRequest",
+      "width": 130
+    },
+    {
+      "id": "llm",
+      "lane": "driver",
+      "col": 4,
+      "type": "cloud",
+      "label": "LLM",
+      "sublabel": "llm.stream()",
+      "width": 125
+    },
+    {
+      "id": "decide",
+      "lane": "driver",
+      "col": 5,
+      "type": "backend",
+      "label": "有没有 tool_call",
+      "sublabel": "没有就 turn 结束",
+      "width": 150
+    },
+    {
+      "id": "toolrun",
+      "lane": "tools",
+      "col": 5,
+      "type": "backend",
+      "label": "executeToolCalls",
+      "sublabel": "并发分组 · 失败补录",
+      "width": 155
+    },
+    {
+      "id": "logmsg",
+      "lane": "log",
+      "col": 4,
+      "type": "database",
+      "label": "user / assistant message",
+      "sublabel": "模型可见即落盘",
+      "width": 170
+    },
+    {
+      "id": "logtool",
+      "lane": "log",
+      "col": 5,
+      "type": "database",
+      "label": "tool/result",
+      "sublabel": "结果与证据",
+      "width": 140
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "human",
+      "to": "inbox",
+      "variant": "default",
+      "label": "排队"
+    },
+    {
+      "id": "e2",
+      "from": "inbox",
+      "to": "prestep",
+      "variant": "emphasis",
+      "label": "claim(target)"
+    },
+    {
+      "id": "e3",
+      "from": "prestep",
+      "to": "step",
+      "variant": "default",
+      "label": "messages 装好"
+    },
+    {
+      "id": "e4",
+      "from": "step",
+      "to": "llm",
+      "variant": "emphasis",
+      "label": "发请求"
+    },
+    {
+      "id": "e5",
+      "from": "llm",
+      "to": "decide",
+      "variant": "default",
+      "label": "流式回答"
+    },
+    {
+      "id": "e6",
+      "from": "decide",
+      "to": "toolrun",
+      "variant": "emphasis",
+      "label": "有就执行"
+    },
+    {
+      "id": "e7",
+      "from": "toolrun",
+      "to": "inbox",
+      "variant": "emphasis",
+      "label": "结果与上下文 splice 回 next-step",
+      "role": "return"
+    },
+    {
+      "id": "e9",
+      "from": "llm",
+      "to": "logmsg",
+      "variant": "dashed"
+    },
+    {
+      "id": "e10",
+      "from": "toolrun",
+      "to": "logtool",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "最外层循环",
+      "items": [
+        "kick() 里就是 while (await this.turn()) {}，turn 返回 true 表示队列还有活",
+        "闲着的时候驱动器是 idle 的，靠 wakeDriver 唤醒，不是常驻轮询",
+        "turn 的退出条件是「本轮跑完 且 next-step 队列为空」"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "inbox 有两个队列",
+      "items": [
+        "next-turn 等到下一个 turn；next-step 在当前 step 结束后立刻插入",
+        "第一个 step 取 next-turn，之后 target 切成 next-step",
+        "队列状态是从 agent/inbox/spliced 事件折叠出来的，排队中的输入也进日志"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "工具结果的回程",
+      "items": [
+        "executeToolCalls 的最后一个参数是 acceptContext，把上下文消息 splice 回 next-step",
+        "工具结果本身落成 tool/result，和用户插话走同一条队列",
+        "工具按 executionMode 分组：parallel 才并发，上限 maxParallelToolCalls 默认 10"
+      ]
+    }
+  ]
+}
