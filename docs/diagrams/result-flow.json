@@ -1,0 +1,236 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "子 agent 的结果怎么回流到父级",
+    "subtitle": "三家都是「先落地，再回流」；差别在谁触发、以什么身份进父上下文",
+    "locale": "zh-CN",
+    "output": ".archify/workflow-result-flow-20261010-194000/result-flow.html",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "dsh",
+      "label": "DSH"
+    },
+    {
+      "id": "codex",
+      "label": "Codex"
+    },
+    {
+      "id": "claude",
+      "label": "Claude Code"
+    }
+  ],
+  "mainPath": [
+    "c_done",
+    "c_place",
+    "c_route",
+    "c_seen"
+  ],
+  "nodes": [
+    {
+      "id": "d_done",
+      "lane": "dsh",
+      "col": 0,
+      "type": "backend",
+      "label": "子循环跑完",
+      "sublabel": "产生 last message",
+      "width": 145
+    },
+    {
+      "id": "d_place",
+      "lane": "dsh",
+      "col": 1,
+      "type": "database",
+      "label": "先落在子会话",
+      "sublabel": "run 结果 或 Activation",
+      "width": 145
+    },
+    {
+      "id": "d_route",
+      "lane": "dsh",
+      "col": 2,
+      "type": "messagebus",
+      "label": "投递进父的 Inbox",
+      "sublabel": "父空闲则起一个 turn",
+      "width": 145
+    },
+    {
+      "id": "d_seen",
+      "lane": "dsh",
+      "col": 3,
+      "type": "backend",
+      "label": "父多一条消息",
+      "sublabel": "tool result 或 user",
+      "width": 145
+    },
+    {
+      "id": "c_done",
+      "lane": "codex",
+      "col": 0,
+      "type": "backend",
+      "label": "turn 进终态",
+      "sublabel": "TurnComplete",
+      "width": 145
+    },
+    {
+      "id": "c_place",
+      "lane": "codex",
+      "col": 1,
+      "type": "database",
+      "label": "存进 AgentStatus",
+      "sublabel": "last_agent_message",
+      "width": 145
+    },
+    {
+      "id": "c_route",
+      "lane": "codex",
+      "col": 2,
+      "type": "messagebus",
+      "label": "enqueue 到父邮箱",
+      "sublabel": "trigger_turn = false",
+      "width": 145
+    },
+    {
+      "id": "c_seen",
+      "lane": "codex",
+      "col": 3,
+      "type": "backend",
+      "label": "父 take() 取走",
+      "sublabel": "tool 消息；或 wait",
+      "width": 145
+    },
+    {
+      "id": "e_done",
+      "lane": "claude",
+      "col": 0,
+      "type": "backend",
+      "label": "query() 跑完",
+      "sublabel": "一轮结束",
+      "width": 145
+    },
+    {
+      "id": "e_place",
+      "lane": "claude",
+      "col": 1,
+      "type": "database",
+      "label": "最终报告文本",
+      "sublabel": "前台返回值；后台存",
+      "width": 145
+    },
+    {
+      "id": "e_route",
+      "lane": "claude",
+      "col": 2,
+      "type": "messagebus",
+      "label": "前台直返 / 后台写",
+      "sublabel": "队友：文件邮箱 + 锁",
+      "width": 145
+    },
+    {
+      "id": "e_seen",
+      "lane": "claude",
+      "col": 3,
+      "type": "backend",
+      "label": "父看到 tool result",
+      "sublabel": "或后台通知消息",
+      "width": 145
+    }
+  ],
+  "edges": [
+    {
+      "id": "d1",
+      "from": "d_done",
+      "to": "d_place",
+      "variant": "default"
+    },
+    {
+      "id": "d2",
+      "from": "d_place",
+      "to": "d_route",
+      "variant": "default"
+    },
+    {
+      "id": "d3",
+      "from": "d_route",
+      "to": "d_seen",
+      "variant": "default"
+    },
+    {
+      "id": "c1",
+      "from": "c_done",
+      "to": "c_place",
+      "variant": "default"
+    },
+    {
+      "id": "c2",
+      "from": "c_place",
+      "to": "c_route",
+      "variant": "default"
+    },
+    {
+      "id": "c3",
+      "from": "c_route",
+      "to": "c_seen",
+      "variant": "default"
+    },
+    {
+      "id": "e1",
+      "from": "e_done",
+      "to": "e_place",
+      "variant": "default"
+    },
+    {
+      "id": "e2",
+      "from": "e_place",
+      "to": "e_route",
+      "variant": "default"
+    },
+    {
+      "id": "e3",
+      "from": "e_route",
+      "to": "e_seen",
+      "variant": "default"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "三家的共同点",
+      "items": [
+        "子 agent 跑完，结果先落在它自己的会话/状态里，不直接改父上下文",
+        "回流都要过一次队列或一次显式取用，没有一家是「完成即插入父消息」",
+        "父看到的形态只有两种：tool result（我调用的返回值）或 user 消息（别人告诉我的事）"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Codex：推 + 拉两条路都有",
+      "items": [
+        "推：turn 终态时 completion.rs 把结果 enqueue 到父的 Mailbox，trigger_turn = false（只排队不唤醒）",
+        "Mailbox 是每 ThreadId 一个队列 + 一个 watch 通道；父被唤醒时 take() 取走",
+        "拉：父显式 wait_agent，读 AgentStatus::Completed(last_agent_message)",
+        "只对 MultiAgentV2 的 ThreadSpawn 子 agent 生效；指标 codex.multi_agent.result_delivery 记 queued / failed"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "DSH：拉为主，可续子 agent 有推",
+      "items": [
+        "一次性子 agent：父调 wait_agent 拿 run 的结果，进父上下文时是 tool result",
+        "可续子 agent：Activation 结算时管理器无条件投递一条 notice 给直接父级，走的是父的 Inbox",
+        "所以可续那条路回来的是一条 user 消息，和用户插话同一条队列"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Claude Code：前台推不动，后台靠通知",
+      "items": [
+        "前台：Agent 工具调用直接返回最终报告，就是普通 tool result",
+        "后台：结果先存着，之后的某一轮以 <task-notification> 形式进入父上下文",
+        "团队场景下队友消息走文件邮箱（~/.claude/teams/{team}/inboxes/{agent}.json）+ 锁文件"
+      ]
+    }
+  ]
+}
