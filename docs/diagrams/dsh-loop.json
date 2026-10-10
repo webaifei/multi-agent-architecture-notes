@@ -1,0 +1,241 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "DSH 的 agent loop：一个环",
+    "subtitle": "队列在环顶取一次；工具结果回到同一个队列，环再转一圈",
+    "locale": "zh-CN",
+    "output": ".archify/arch-three-loops-20261010-190000/dsh-loop.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "human",
+      "type": "external",
+      "label": "人",
+      "sublabel": "一次输入",
+      "pos": [
+        100,
+        30
+      ],
+      "size": [
+        180,
+        56
+      ]
+    },
+    {
+      "id": "queue",
+      "type": "messagebus",
+      "label": "Inbox",
+      "sublabel": "next-turn + next-step",
+      "pos": [
+        100,
+        140
+      ],
+      "size": [
+        180,
+        60
+      ]
+    },
+    {
+      "id": "assemble",
+      "type": "backend",
+      "label": "preStep",
+      "sublabel": "claim · 组装 · waterfall",
+      "pos": [
+        520,
+        140
+      ],
+      "size": [
+        180,
+        60
+      ]
+    },
+    {
+      "id": "model",
+      "type": "cloud",
+      "label": "LLM",
+      "sublabel": "llm.stream()",
+      "pos": [
+        520,
+        380
+      ],
+      "size": [
+        180,
+        60
+      ]
+    },
+    {
+      "id": "tools",
+      "type": "backend",
+      "label": "executeToolCalls",
+      "sublabel": "按 executionMode 分组",
+      "pos": [
+        100,
+        380
+      ],
+      "size": [
+        180,
+        60
+      ]
+    },
+    {
+      "id": "turnend",
+      "type": "backend",
+      "label": "turn 结束",
+      "sublabel": "turn/end",
+      "pos": [
+        815,
+        380
+      ],
+      "size": [
+        160,
+        60
+      ]
+    },
+    {
+      "id": "log",
+      "type": "database",
+      "label": "session.append",
+      "sublabel": "每个动作都落盘",
+      "pos": [
+        300,
+        260
+      ],
+      "size": [
+        200,
+        60
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "循环体：每转一圈 = 一个 step",
+      "wraps": [
+        "queue",
+        "assemble",
+        "model",
+        "tools"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "c1",
+      "from": "human",
+      "to": "queue",
+      "variant": "emphasis",
+      "label": "一次输入",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "c2",
+      "from": "queue",
+      "to": "assemble",
+      "variant": "emphasis",
+      "label": "claim",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "c3",
+      "from": "assemble",
+      "to": "model",
+      "variant": "emphasis",
+      "label": "发请求",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "c4",
+      "from": "model",
+      "to": "tools",
+      "variant": "emphasis",
+      "label": "有 tool_call",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "c5",
+      "from": "tools",
+      "to": "queue",
+      "variant": "emphasis",
+      "label": "结果与上下文 splice 回 next-step",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "c6",
+      "from": "model",
+      "to": "turnend",
+      "variant": "default",
+      "label": "没有 tool_call",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "c7",
+      "from": "turnend",
+      "to": "queue",
+      "variant": "dashed",
+      "label": "队列还有活就再来一个 turn",
+      "fromSide": "top",
+      "toSide": "top"
+    },
+    {
+      "id": "c8",
+      "from": "assemble",
+      "to": "log",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "c9",
+      "from": "model",
+      "to": "log",
+      "variant": "dashed",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "c10",
+      "from": "tools",
+      "to": "log",
+      "variant": "dashed",
+      "label": "落盘",
+      "fromSide": "right",
+      "toSide": "left"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "环在哪里",
+      "items": [
+        "环体：queue → preStep → step(LLM) → 有 tool_call → executeToolCalls → 回 queue",
+        "转一圈 = 一个 step。step() 返回 null 就再转，返回 completed 就出环",
+        "退出环之后还有一圈：turn 结束但队列还有输入，kick() 会再开一个 turn"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "两个入口而不是一个",
+      "items": [
+        "工具结果和用户插话进的是同一个队列（next-step），这是环能自洽的关键",
+        "第一个 step 取 next-turn，之后 target 切成 next-step",
+        "队列状态从 agent/inbox/spliced 事件折叠，排队中的输入也进日志"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "环心是日志",
+      "items": [
+        "session.append 不在环上，它是每一步的落点：turn/start、step/start、user/assistant message、tool/result、step/end、turn/end",
+        "所以「日志是真相」不是一句口号，是环上每个动作都顺手记一笔"
+      ]
+    }
+  ]
+}

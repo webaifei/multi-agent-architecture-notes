@@ -1,0 +1,242 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Claude Code 的 agent loop：可观察的环",
+    "subtitle": "只画 SDK 能看到的往返；环内部不公开",
+    "locale": "zh-CN",
+    "output": ".archify/arch-three-loops-20261010-190000/claude-code-loop.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "human",
+      "type": "external",
+      "label": "人",
+      "sublabel": "一次 prompt",
+      "pos": [
+        100,
+        30
+      ],
+      "size": [
+        180,
+        56
+      ]
+    },
+    {
+      "id": "queue",
+      "type": "messagebus",
+      "label": "SDK 输入流",
+      "sublabel": "stream-json 帧",
+      "pos": [
+        100,
+        140
+      ],
+      "size": [
+        180,
+        60
+      ]
+    },
+    {
+      "id": "assemble",
+      "type": "backend",
+      "label": "query 一轮",
+      "sublabel": "上下文三层组装",
+      "pos": [
+        520,
+        140
+      ],
+      "size": [
+        180,
+        60
+      ]
+    },
+    {
+      "id": "model",
+      "type": "cloud",
+      "label": "Anthropic API",
+      "sublabel": "assistant 帧",
+      "pos": [
+        520,
+        380
+      ],
+      "size": [
+        180,
+        60
+      ]
+    },
+    {
+      "id": "tools",
+      "type": "backend",
+      "label": "工具执行",
+      "sublabel": "can_use_tool 反向 RPC",
+      "pos": [
+        100,
+        380
+      ],
+      "size": [
+        180,
+        60
+      ]
+    },
+    {
+      "id": "turnend",
+      "type": "backend",
+      "label": "result 帧",
+      "sublabel": "一轮结束",
+      "pos": [
+        815,
+        380
+      ],
+      "size": [
+        160,
+        60
+      ]
+    },
+    {
+      "id": "log",
+      "type": "database",
+      "label": "transcript JSONL",
+      "sublabel": "~/.claude/projects",
+      "pos": [
+        300,
+        260
+      ],
+      "size": [
+        200,
+        60
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "可观察的循环体：一次模型往返 = 一个 tool_use / tool_result 来回",
+      "wraps": [
+        "queue",
+        "assemble",
+        "model",
+        "tools"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "c1",
+      "from": "human",
+      "to": "queue",
+      "variant": "emphasis",
+      "label": "一次输入",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "c2",
+      "from": "queue",
+      "to": "assemble",
+      "variant": "emphasis",
+      "label": "claim",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "c3",
+      "from": "assemble",
+      "to": "model",
+      "variant": "emphasis",
+      "label": "发请求",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "c4",
+      "from": "model",
+      "to": "tools",
+      "variant": "emphasis",
+      "label": "有 tool_call",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "c5",
+      "from": "tools",
+      "to": "queue",
+      "variant": "emphasis",
+      "label": "tool_result 回输入流",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "c6",
+      "from": "model",
+      "to": "turnend",
+      "variant": "default",
+      "label": "没有 tool_use",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "c7",
+      "from": "turnend",
+      "to": "queue",
+      "variant": "dashed",
+      "label": "下一条用户输入",
+      "fromSide": "top",
+      "toSide": "top"
+    },
+    {
+      "id": "c8",
+      "from": "assemble",
+      "to": "log",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "c9",
+      "from": "model",
+      "to": "log",
+      "variant": "dashed",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "c10",
+      "from": "tools",
+      "to": "log",
+      "variant": "dashed",
+      "label": "每轮 init",
+      "fromSide": "right",
+      "toSide": "left"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "orange",
+      "title": "环里哪些是能证实的",
+      "items": [
+        "能证实：帧的往返（user → assistant → tool_use → tool_result → result），以及 can_use_tool / hook_callback 是 CLI 反向发起的控制请求",
+        "不能证实：CLI 内部的循环怎么写、压缩怎么算、系统提示有哪些段",
+        "所以这个环是「协议层的环」，不是「实现的环」"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "一轮是什么",
+      "items": [
+        "一轮 = 一次用户输入到一条 result；num_turns 是轮内模型往返次数，不是轮数",
+        "system/init 每轮开头重发，带 session_id、tools、permissionMode、capabilities",
+        "session_id 几乎出现在每条帧上；--resume / --fork-session 控制续写与分叉"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "权限与 hook 是反向 RPC",
+      "items": [
+        "工具要批准时是 CLI 主动发 can_use_tool，SDK 回 allow / deny",
+        "hook 同理：CLI 发 hook_callback，SDK 执行本地函数再回结果",
+        "这也是三家里唯一需要一整套 control protocol（40 种 subtype）的原因"
+      ]
+    }
+  ]
+}

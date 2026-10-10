@@ -1,0 +1,242 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Codex 的 agent loop：一个环",
+    "subtitle": "环外面还套着三层循环；环内一圈是一次采样 + 它要求的工具",
+    "locale": "zh-CN",
+    "output": ".archify/arch-three-loops-20261010-190000/codex-loop.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "human",
+      "type": "external",
+      "label": "人",
+      "sublabel": "一次提交",
+      "pos": [
+        100,
+        30
+      ],
+      "size": [
+        180,
+        56
+      ]
+    },
+    {
+      "id": "queue",
+      "type": "messagebus",
+      "label": "InputQueue",
+      "sublabel": "Mailbox + Steer",
+      "pos": [
+        100,
+        140
+      ],
+      "size": [
+        180,
+        60
+      ]
+    },
+    {
+      "id": "assemble",
+      "type": "backend",
+      "label": "run_turn 步进",
+      "sublabel": "取输入 · 记录 · 抓上下文",
+      "pos": [
+        520,
+        140
+      ],
+      "size": [
+        180,
+        60
+      ]
+    },
+    {
+      "id": "model",
+      "type": "cloud",
+      "label": "client.stream()",
+      "sublabel": "四层里的第三层",
+      "pos": [
+        520,
+        380
+      ],
+      "size": [
+        180,
+        60
+      ]
+    },
+    {
+      "id": "tools",
+      "type": "backend",
+      "label": "ToolCallRuntime",
+      "sublabel": "审批 · 沙箱",
+      "pos": [
+        100,
+        380
+      ],
+      "size": [
+        180,
+        60
+      ]
+    },
+    {
+      "id": "turnend",
+      "type": "backend",
+      "label": "turn 结束",
+      "sublabel": "!needs_follow_up",
+      "pos": [
+        815,
+        380
+      ],
+      "size": [
+        160,
+        60
+      ]
+    },
+    {
+      "id": "log",
+      "type": "database",
+      "label": "rollout JSONL",
+      "sublabel": "resume 靠它",
+      "pos": [
+        300,
+        260
+      ],
+      "size": [
+        200,
+        60
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "循环体：每转一圈 = 一次采样请求 + 它要求的工具",
+      "wraps": [
+        "queue",
+        "assemble",
+        "model",
+        "tools"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "c1",
+      "from": "human",
+      "to": "queue",
+      "variant": "emphasis",
+      "label": "一次输入",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "c2",
+      "from": "queue",
+      "to": "assemble",
+      "variant": "emphasis",
+      "label": "claim",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "c3",
+      "from": "assemble",
+      "to": "model",
+      "variant": "emphasis",
+      "label": "发请求",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "c4",
+      "from": "model",
+      "to": "tools",
+      "variant": "emphasis",
+      "label": "有 tool_call",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "c5",
+      "from": "tools",
+      "to": "queue",
+      "variant": "emphasis",
+      "label": "结果与 steer 输入回队列",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "c6",
+      "from": "model",
+      "to": "turnend",
+      "variant": "default",
+      "label": "没有 tool_call",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "c7",
+      "from": "turnend",
+      "to": "queue",
+      "variant": "dashed",
+      "label": "队列还有活就再来一轮",
+      "fromSide": "top",
+      "toSide": "top"
+    },
+    {
+      "id": "c8",
+      "from": "assemble",
+      "to": "log",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "c9",
+      "from": "model",
+      "to": "log",
+      "variant": "dashed",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "c10",
+      "from": "tools",
+      "to": "log",
+      "variant": "dashed",
+      "label": "落盘",
+      "fromSide": "right",
+      "toSide": "left"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "这个环外面还套着三层",
+      "items": [
+        "① RegularTask::run 任务循环（tasks/regular.rs:104）",
+        "② run_turn 步进循环（session/turn.rs:425）— 就是图上这个环",
+        "③④ try_run_sampling_request 流事件循环 + run_sampling_request 重试循环"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "继续与退出",
+      "items": [
+        "继续：needs_follow_up = model_needs_follow_up || has_pending_input（turn.rs:574）",
+        "退出：!needs_follow_up 时跑 post-turn 压缩后 break（turn.rs:758）",
+        "还有三条 continue 分支：should_roll_over 压缩、Stop hook 阻塞、guardian 预算"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "队列按来源分",
+      "items": [
+        "InputQueue 里的活动类型只有两种：Mailbox 和 Steer（input_queue.rs:83）",
+        "get_pending_input 会把当前回合待处理输入 split_off(0)，再 drain 邮箱合并",
+        "工具 future 是流结束后才排空的（FuturesOrdered，turn.rs:2582 / drain 3159）"
+      ]
+    }
+  ]
+}
