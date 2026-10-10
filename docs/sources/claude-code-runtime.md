@@ -26,6 +26,40 @@ CLI 现在是**编译后的原生二进制**；`bin/claude.exe` 在 Linux/macOS 
 **0.3 真正可读的三层**：`code.claude.com/docs/en/*.md`（行为承诺、配置、限额）＋ SDK 的 `.d.ts` 与 Python 实现
 （帧格式、控制协议、CLI 参数）＋ npm 元数据。
 
+---
+
+### 0.4 更正：2.1.296 是原生二进制，但**历史版本发的是 JS**
+
+上面 0.2 的结论只对**当前最新版**成立。核实（2026-10-10）如下：
+
+- `@anthropic-ai/claude-code` 共 **542 个版本**；`2.1.100` 的 tarball 只有 5.1 MB 且不含 `cli.js`，
+  说明切换到原生二进制发生在 2.1.x 中段。
+- **2.1.87 / 2.1.89 / 2.1.90 仍然带 `package/cli.js`**（9–13 MB，minified，无 sourceMappingURL）。
+- 更早的 `1.0.0`、`2.0.0` 同样带 `cli.js`。
+- **2.0.0 还额外带 `package/sdk-tools.d.ts`**——`ToolInputSchemas` 的完整 TS 声明，
+  含 `AgentInput { description, prompt, subagent_type }`、`BashInput`、`FileEditInput` 等全部工具入参。
+  这是官方分发包里可直接引用的一手材料。
+
+所以「读不到实现」的说法要收窄为：**读不到源码级实现，但可以读官方分发的 minified `cli.js`
+（字符串与对象键名可作证据），以及官方分发的工具 schema 声明。**
+
+### 0.5 泄漏事件：sourcemap 里带出了完整 TS 源
+
+2026-03-31 有人发现某个 npm 版本的 sourcemap 把**原始 TypeScript 源码**打进了
+`sourcesContent`。核实：
+
+- **`2.1.88` 已被 npm 撤下**：`versions` 列表里没有它，单版本查询返回
+  `"version not found: 2.1.88"`，tarball 404；但 `time` 字段里仍留着
+  发布时刻 `2026-03-30T22:36:48Z`。
+- 因此**一手来源已断**。目前流通的是第三方转存仓库
+  （如 `github.com/yasasbanukaofficial/claude-code`，个人账号、2 个提交、无 license）。
+- 用官方仍在的 `2.1.87/cli.js` 交叉查该仓库出现过的标识符：`isSidechain` 命中 37 次、
+  `main.tsx` 3 次、`Tool.ts` 1 次。这**弱支持**同源，但**不能证明第三方副本未被篡改**。
+
+**取材规则**：第三方转存仓库只能作为**阅读材料**，引用时必须标注
+「来源为第三方转存的泄漏代码，未经官方渠道验证」；不得作为依赖、不得复制代码进本仓。
+需要可信一手材料时，用 npm 上仍在的官方版本并钉死版本号与 sha256。
+
 ## 1. Query 生命周期
 
 **1.1 SDK 怎么起 CLI。** **[源码]** `claude-agent-sdk-python/src/claude_agent_sdk/_internal/transport/subprocess_cli.py:574`：
@@ -345,6 +379,10 @@ hook 事件 33 项与逐事件决策能力、深度 3 / 并发 20、CLAUDE.md �
 Agent 工具的**完整参数 schema**；`can_use_tool` 的内部 park deadline。
 
 ## 8. 明确**不公开**的部分（教学材料禁止把猜测写成实现）
+
+> 更新 2026-10-10：本节针对的是 **2.1.296 及以后**（原生二进制）。历史版本的 `cli.js` 与
+> 泄漏出来的 TS 源不属于「不公开」范畴，见 0.4 / 0.5；但泄漏源的完整性无法验证，取材须标注。
+
 
 1. **CLI 内部实现整体**。`claude` 是各平台原生二进制（见 0.2）。以下全部不可读：agent 主循环、工具的具体实现、
    压缩摘要的提示词与算法、token 计数方式、`auto` 模式分类器的提示词与阈值、会话文件的写入代码。
