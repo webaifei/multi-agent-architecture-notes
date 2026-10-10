@@ -62,13 +62,8 @@
   - `codex-rs/core/src/tasks/mod.rs:186` `fn span_name(&self) -> &'static str;`
   - `codex-rs/core/src/tasks/mod.rs:198` `fn run(`
   - `codex-rs/core/src/tasks/mod.rs:211` `fn abort(`
-- `run` 返回 `SessionTaskResult = CodexResult<Option<String>>`；`Some` 会被 `Session::on_task_finished` 发给客户端。
-  - `codex-rs/core/src/tasks/mod.rs:75` `pub(crate) type SessionTaskResult = CodexResult<Option<String>>;`
-  - 契约说明 `codex-rs/core/src/tasks/mod.rs:190-197`。
-- `AnySessionTask` 是对象安全版本；`RegularTask`、审查任务、`CompactTask` 都实现 `SessionTask`。
-  - `codex-rs/core/src/tasks/mod.rs:222` `pub(crate) trait AnySessionTask: Send + Sync + 'static {`
-  - `codex-rs/core/src/tasks/mod.rs:65` `pub(crate) use regular::RegularTask;`
-  - `codex-rs/core/src/tasks/compact.rs:18` `pub(crate) struct CompactTask;`
+- `run` 返回 `SessionTaskResult = CodexResult<Option<String>>`；`Some` 会被 `Session::on_task_finished` 发给客户端（`codex-rs/core/src/tasks/mod.rs:75`，契约说明 `:190-197`）。
+- `AnySessionTask` 是对象安全版本（`codex-rs/core/src/tasks/mod.rs:222`）；实现者含 `RegularTask`（`:65`）与 `CompactTask`（`codex-rs/core/src/tasks/compact.rs:18`）。
 
 ---
 
@@ -84,21 +79,15 @@
 - **继续条件**：`run_turn` 正常返回、无 terminal error、输入队列仍有待处理输入；把 `next_input` 置空再跑一轮。
   - `codex-rs/core/src/tasks/regular.rs:120` `if !sess.input_queue.has_pending_input(&sess.active_turn).await {`
   - `codex-rs/core/src/tasks/regular.rs:123` `next_input = Vec::new();`
-- **退出条件**：
-  1. `run_turn` 返回 `Err`，经 `?` 冒泡（`:114`）；
-  2. `ctx.terminal_error` 非空，返回已有消息（`:117-119`）；
-  3. 队列无待处理输入，返回 `Ok(last_agent_message)`（`:121`）。
+- **退出条件**：`run_turn` 返回 `Err` 经 `?` 冒泡（`:114`）；`ctx.terminal_error` 非空（`:117-119`）；队列无待处理输入（`:121`）。
 - 含义：一个「任务」在语义上可包含多次 `run_turn`。
 
 ### 2.2 第二层：`run_turn` 的步进循环
 
 - 函数 `codex-rs/core/src/session/turn.rs:164`；循环在 `:425`。
   - `codex-rs/core/src/session/turn.rs:425` `loop {`
-- 每轮：取待处理输入（`:429-434`，`get_pending_input`）→ 记录输入（`:436-448`）→ 可选压缩/上下文捕获 → 发一次采样请求。
-  - 采样调用在 `codex-rs/core/src/session/turn.rs:524`（`run_sampling_request`）。
-- 采样后判定：
-  - `codex-rs/core/src/session/turn.rs:574` `let needs_follow_up = model_needs_follow_up || has_pending_input;`
-  - `codex-rs/core/src/session/turn.rs:609` `let should_roll_over = needs_follow_up`
+- 每轮：取待处理输入（`:429-434`）→ 记录输入（`:436-448`）→ 可选压缩与上下文捕获 → 发一次采样请求（`:532`，`run_sampling_request`）。
+- 采样后判定：`codex-rs/core/src/session/turn.rs:574` `let needs_follow_up = model_needs_follow_up || has_pending_input;` 与 `:609` `let should_roll_over = needs_follow_up`。
 - **继续条件（`continue`）**：
   1. `should_roll_over`：先 `run_auto_compact`（`CompactionPhase::MidTurn`，`:628`），再 `continue`（`:654`）。
   2. `needs_follow_up` 为真：`codex-rs/core/src/session/turn.rs:760` `continue;`
@@ -110,16 +99,13 @@
   3. `!needs_follow_up`：跑 post-turn 压缩（`CompactionPhase::PostTurn`，`:736`）后 `codex-rs/core/src/session/turn.rs:758` `break;`
   4. 图片请求非法：`codex-rs/core/src/session/turn.rs:816` `break;`
   5. 其它错误：`codex-rs/core/src/session/turn.rs:833` `break;`
-- 循环后返回 `Ok(last_agent_message)`，`codex-rs/core/src/session/turn.rs:836`。
+- 循环后返回 `Ok(last_agent_message)`，`codex-rs/core/src/session/turn.rs:838`。
 
 ### 2.3 第三层：`try_run_sampling_request` 的流事件循环
 
-- 包装函数 `run_sampling_request` 建 `ToolCallRuntime` 并进入重试循环。
-  - `codex-rs/core/src/session/turn.rs:1604` `async fn run_sampling_request(`
-  - `codex-rs/core/src/session/turn.rs:1614` `let tool_runtime = ToolCallRuntime::new(`
+- 包装函数 `run_sampling_request`（`codex-rs/core/src/session/turn.rs:1604`）建 `ToolCallRuntime`（`:1614`）并进入重试循环。
 - `client.stream(...)` 在 `codex-rs/core/src/session/turn.rs:2565-2566`（`let mut stream = client_session` / `.stream(`）。
-- 流事件循环在 `codex-rs/core/src/session/turn.rs:2611`。
-  - `codex-rs/core/src/session/turn.rs:2611` `let outcome: CodexResult<SamplingRequestResult> = loop {`
+- 流事件循环在 `codex-rs/core/src/session/turn.rs:2611` `let outcome: CodexResult<SamplingRequestResult> = loop {`。
 - **退出条件**：
   1. 取消：`codex-rs/core/src/session/turn.rs:2634` `break Err(CodexErr::TurnAborted);`
   2. 流被中断但可继续：重置 preempt 后 `codex-rs/core/src/session/turn.rs:2646` `continue;`
@@ -127,11 +113,7 @@
   4. 流被丢弃：`codex-rs/core/src/session/turn.rs:2662` `break Err(CodexErr::Stream(`
   5. mailbox 抢占：`codex-rs/core/src/session/turn.rs:2808` 返回 `needs_follow_up: true`。
   6. `ResponseEvent::Completed`：`codex-rs/core/src/session/turn.rs:2949`，据 `end_turn` 定 `needs_follow_up`，最终 `codex-rs/core/src/session/turn.rs:2994` `break Ok(SamplingRequestResult {`。
-- 流结束后才排空工具 future。
-  - `codex-rs/core/src/session/turn.rs:2582` `let mut in_flight: FuturesOrdered<InFlightFuture<'static>> = FuturesOrdered::new();`
-  - `codex-rs/core/src/session/turn.rs:2785` `in_flight.push_back(tool_future);`
-  - `codex-rs/core/src/session/turn.rs:3159` `if !in_flight.is_empty() {`
-  - 排空实现 `codex-rs/core/src/session/turn.rs:2462`（`drain_in_flight`）。
+- 工具 future 先入队、流结束后才排空：`codex-rs/core/src/session/turn.rs:2582` `let mut in_flight: FuturesOrdered<InFlightFuture<'static>> = FuturesOrdered::new();`、`:2785` `in_flight.push_back(tool_future);`、`:3159` `if !in_flight.is_empty() {`、排空实现 `:2462`（`drain_in_flight`）。
 
 ### 2.4 第四层：`run_sampling_request` 自身的重试循环
 
@@ -154,55 +136,34 @@
 
 ### 3.1 结构
 
-- `InputQueue` 是会话级；`TurnInputQueue` 是回合级待处理输入容器。
-  - `codex-rs/core/src/session/input_queue.rs:95` `pub(crate) struct InputQueue {`
-  - `codex-rs/core/src/session/input_queue.rs:90` `pub(crate) struct TurnInputQueue {`
-  - `codex-rs/core/src/session/input_queue.rs:91` `items: Vec<TurnInput>,`
-- `InputQueue` 另有 mailbox 队列与活动通知通道（字段见 `:96-99`）。
-- 活动类型只有两种：`Mailbox` 与 `Steer`。
-  - `codex-rs/core/src/session/input_queue.rs:83` `pub(crate) enum InputQueueActivity {`
+- `InputQueue` 是会话级（`codex-rs/core/src/session/input_queue.rs:95`），`TurnInputQueue` 是回合级容器（`:90`），后者只持有 `:91` `items: Vec<TurnInput>,`。
+- `InputQueue` 另有 mailbox 队列与活动通知通道（字段 `:96-99`）；活动类型只有 `Mailbox` 与 `Steer`（`:83`）。
 
 ### 3.2 `get_pending_input`
 
-- 声明 `codex-rs/core/src/session/input_queue.rs:400`；返回 `(Vec<TurnInput>, TurnStartOptions)`。
-- 流程：锁 active turn → 若当前回合接受 mailbox 投递则整段 `split_off(0)` → 再 drain mailbox 并拼接。
-  - `codex-rs/core/src/session/input_queue.rs:411-415`（`split_off(0)`）
-  - `codex-rs/core/src/session/input_queue.rs:424-431`（`drain_mailbox_input_items` 后合并）
-- 不接受 mailbox 时直接返回空 `TurnStartOptions`，`codex-rs/core/src/session/input_queue.rs:421-423`。
+- 声明 `codex-rs/core/src/session/input_queue.rs:400`，返回 `(Vec<TurnInput>, TurnStartOptions)`。
+- 流程：锁 active turn → 若当前回合接受 mailbox 投递则整段 `split_off(0)`（`:411-415`）→ 再 drain mailbox 并拼接（`:424-431`）。
+- 不接受 mailbox 时直接返回空 `TurnStartOptions`（`:421-423`）。
 
 ### 3.3 `has_pending_input`
 
-- 声明 `codex-rs/core/src/session/input_queue.rs:438`。
-  - `codex-rs/core/src/session/input_queue.rs:445` `!turn_state.pending_input.is_empty(),`
-  - 不接受 mailbox 投递则返回 `false`，否则回落到 `has_pending_mailbox_items()`（`:452-457`）。
-- 这是第 1 层循环唯一的继续判据。
+- 声明 `codex-rs/core/src/session/input_queue.rs:438`；判据是 `:445` `!turn_state.pending_input.is_empty(),`。
+- 不接受 mailbox 投递则返回 `false`，否则回落到 `has_pending_mailbox_items()`（`:452-457`）。这是第 1 层循环唯一的继续判据。
 
 ### 3.4 `accept_mailbox_delivery_for_current_turn`
 
-- 声明 `codex-rs/core/src/session/input_queue.rs:345`；先把回合状态置回 `CurrentTurn`。
-  - `codex-rs/core/src/session/input_queue.rs:346-352`（取 `turn_state_for_sub_id`）
-  - `codex-rs/core/src/session/input_queue.rs:353-359`（调用 `accept_mailbox_delivery_for_turn_state`）
-- 状态机在 `TurnState`；默认 `CurrentTurn`，发出可见最终答案后切 `NextTurn`。
-  - `codex-rs/core/src/state/turn.rs:47` `pub(crate) enum MailboxDeliveryPhase {`
-  - `codex-rs/core/src/state/turn.rs:37-45` 状态转移注释
-  - `codex-rs/core/src/state/turn.rs:208` `pub(crate) fn accept_mailbox_delivery_for_current_turn(&mut self) {`
-- 采样返回「需要续跑」时会主动接受 mailbox 投递，`codex-rs/core/src/session/turn.rs:551-557`。
-- 显式推迟到下一回合：`codex-rs/core/src/session/input_queue.rs:322`。
+- 声明 `codex-rs/core/src/session/input_queue.rs:345`；先把回合状态置回 `CurrentTurn`（取 `turn_state_for_sub_id` 于 `:346-352`，转调于 `:353-359`）。
+- 状态机在 `TurnState`：默认 `CurrentTurn`，发出可见最终答案后切 `NextTurn`。
+  - `codex-rs/core/src/state/turn.rs:47` `pub(crate) enum MailboxDeliveryPhase {`；转移注释 `:37-45`；接受函数 `:208`。
+- 采样返回「需要续跑」时会主动接受 mailbox 投递（`codex-rs/core/src/session/turn.rs:551-557`）；显式推迟到下一回合见 `codex-rs/core/src/session/input_queue.rs:322`。
 
 ### 3.5 steering 与普通回合输入的区别
 
-- steering 走 `Session::steer_input`；前提是存在 `active_turn.task`。
-  - `codex-rs/core/src/session/turn_input.rs:803` `async fn steer_input(`（在 `impl Session` 内）
-  - `codex-rs/core/src/session/turn_input.rs:814` `let Some(active_turn) = active.as_mut() else {`
-- steering 只接受 `UserInput`。
-  - `codex-rs/core/src/session/turn_input.rs:655` `"only user input can steer a turn".to_string(),`
-- 非 `Regular` 任务不可 steering。
-  - `codex-rs/core/src/session/turn_input.rs:836` `turn_kind: NonSteerableTurnKind::Review,`
-  - `codex-rs/core/src/session/turn_input.rs:841` `turn_kind: NonSteerableTurnKind::Compact,`
-- steering 把输入追加到当前回合的 pending 队列，并重新接受 mailbox 投递。
-  - `codex-rs/core/src/session/turn_input.rs:888` `.extend_pending_input_and_accept_mailbox_delivery_for_turn_state(`
-  - `codex-rs/core/src/session/input_queue.rs:368-379`（扩展 items → `accept_mailbox_delivery_for_current_turn` → 发送 `InputQueueActivity::Steer`）
-- 普通回合输入则是新建 `TurnContext` 并启动新任务（`codex-rs/core/src/session/turn_input.rs:446`）。
+- steering 走 `Session::steer_input`（`codex-rs/core/src/session/turn_input.rs:803`），前提是存在 `active_turn.task`（`:814`）。
+- steering 只接受 `UserInput`（`codex-rs/core/src/session/turn_input.rs:655` `"only user input can steer a turn".to_string(),`）。
+- 非 `Regular` 任务不可 steering：`Review`（`:836`）与 `Compact`（`:841`）都返回 `ActiveTurnNotSteerable`。
+- steering 把输入追加到当前回合 pending 队列并重新接受 mailbox 投递（`:888`；`codex-rs/core/src/session/input_queue.rs:368-379` 扩展 items → 接受投递 → 发送 `InputQueueActivity::Steer`）。
+- 普通回合输入则新建 `TurnContext` 并启动新任务（`codex-rs/core/src/session/turn_input.rs:446`）。
 - 结论：steering **不新建回合**，只向已有回合追加；这些输入要等下一轮 `get_pending_input` 才被取走并送进模型。
 - 正在进行的采样可被用户输入抢占：`watch_user_input` 订阅活动并在出现用户输入时 cancel 抢占令牌。
   - `codex-rs/core/src/session/input_queue.rs:293` `pub(crate) async fn watch_user_input(`
@@ -215,59 +176,30 @@
 
 ### 4.1 ToolCallRuntime 与并行分组
 
-- `ToolCallRuntime` 持有 session、step_context、diff tracker 与一把并行闸门锁。
-  - `codex-rs/core/src/tools/parallel.rs:46` `pub(crate) struct ToolCallRuntime {`
-  - `codex-rs/core/src/tools/parallel.rs:51` `parallel_execution: Arc<RwLock<()>>,`
-- 每个调用先问路由器是否支持并行。
-  - `codex-rs/core/src/tools/parallel.rs:141` `let supports_parallel = router.tool_supports_parallel(&call);`
-  - `codex-rs/core/src/tools/router.rs:246` `pub fn tool_supports_parallel(&self, call: &ToolCall) -> bool {`
-- 分组规则：支持并行 → **读锁**（可并发）；不支持 → **写锁**（串行独占）。
-  - `codex-rs/core/src/tools/parallel.rs:213` `if supports_parallel {`
-  - `codex-rs/core/src/tools/parallel.rs:216` `Either::Right(lock.write().await)`
-- 每次派发是独立 `tokio::spawn`，句柄包在 `AbortOnDropHandle`。
-  - `codex-rs/core/src/tools/parallel.rs:202` `let mut dispatch_handle = AbortOnDropHandle::new(tokio::spawn(`
-- 顺序承诺：采样循环只在流结束后按序收集结果。
-  - `codex-rs/core/src/tools/parallel.rs:240` `The sampling loop collects results in order only after its stream ends.`
+- `ToolCallRuntime` 持有 session、step_context、diff tracker 与一把并行闸门锁（`codex-rs/core/src/tools/parallel.rs:46`；锁字段 `:51`）。
+- 每个调用先问路由器是否支持并行（`codex-rs/core/src/tools/parallel.rs:141` → `codex-rs/core/src/tools/router.rs:246`）。
+- 分组规则：支持并行取**读锁**（可并发），否则取**写锁**（串行独占）——`codex-rs/core/src/tools/parallel.rs:213` `if supports_parallel {`、`:216` `Either::Right(lock.write().await)`。
+- 每次派发是独立 `tokio::spawn`（`codex-rs/core/src/tools/parallel.rs:202`）；采样循环只在流结束后按序收集结果（`:240` `The sampling loop collects results in order only after its stream ends.`）。
 
 ### 4.2 审批请求位置
 
-- 命令审批 `codex-rs/core/src/session/mod.rs:2881` `pub async fn request_command_approval(`。
-  - 先注册 oneshot 到 `TurnState.pending_approvals`（`:2916-2926`）。
-  - 发出 `EventMsg::ExecApprovalRequest`（`:2960`）。
-  - 等待响应；断线一律按 `ReviewDecision::Abort`（`:2972`）。
-- 补丁审批 `codex-rs/core/src/session/mod.rs:2976` `pub async fn request_patch_approval(`。
-  - 发出 `EventMsg::ApplyPatchApprovalRequest`（`:3005`），同样等待 oneshot（`:3011`）。
-- 实际调用点在 `tools/approvals.rs` 的 `request_user_approval`。
-  - `codex-rs/core/src/tools/approvals.rs:671` 命令（带缓存键）
-  - `codex-rs/core/src/tools/approvals.rs:701` `write_stdin`
-  - `codex-rs/core/src/tools/approvals.rs:738` / `:752` 补丁（有/无 reason）
-  - `codex-rs/core/src/tools/approvals.rs:779` 网络访问
+- 命令审批 `codex-rs/core/src/session/mod.rs:2881`：注册 oneshot（`:2903-2909`）→ 发 `EventMsg::ExecApprovalRequest`（`:2948`）→ 等待，断线按 `ReviewDecision::Abort`（`:2969`）。
+- 补丁审批 `codex-rs/core/src/session/mod.rs:2976`：发 `EventMsg::ApplyPatchApprovalRequest`（`:3002`）→ 等待 oneshot（`:3011`）。
+- 实际调用点在 `codex-rs/core/src/tools/approvals.rs` 的 `request_user_approval`：命令 `:671`、`write_stdin` `:701`、补丁 `:738`/`:752`、网络访问 `:779`。
 
 ### 4.3 审批、沙箱与重试的编排
 
 - `ToolOrchestrator` 模块注释直接写明顺序：approval → select sandbox → attempt → retry。
   - `codex-rs/core/src/tools/orchestrator.rs:1-6`（含 `approval → select sandbox → attempt → retry`）
-- `run` 固定步骤：
-  - `codex-rs/core/src/tools/orchestrator.rs:127` `pub async fn run<Rq, Out, T>(`
-  - `codex-rs/core/src/tools/orchestrator.rs:137` `let approval_policy = tool_ctx.step_context.settings.approval_policy();`
-  - `codex-rs/core/src/tools/orchestrator.rs:166` `let requirement = tool.exec_approval_requirement(req).unwrap_or_else(|| {`
-- 第一次尝试用 `initial_attempt`（`codex-rs/core/src/tools/orchestrator.rs:364`）。
-- 沙箱拒绝后构造升级的 `retry_attempt` 再试一次（`codex-rs/core/src/tools/orchestrator.rs:539`）。
-- 每次尝试的实际执行在 `run_attempt`（`codex-rs/core/src/tools/orchestrator.rs:56`）。
+- `run` 固定步骤：`codex-rs/core/src/tools/orchestrator.rs:127` `pub async fn run<Rq, Out, T>(`、`:137` `let approval_policy = tool_ctx.step_context.settings.approval_policy();`、`:166` `let requirement = tool.exec_approval_requirement(req).unwrap_or_else(|| {`。
+- 第一次尝试用 `initial_attempt`（`:364`）；沙箱拒绝后构造升级的 `retry_attempt` 再试（`:539`）；单次执行在 `run_attempt`（`:56`）。
 
 ### 4.4 沙箱模式在哪里被应用
 
-- `SandboxAttempt` 承载一次尝试的沙箱类型、权限、cwd、workspace roots 与 sandbox 可执行文件。
-  - `codex-rs/core/src/tools/sandboxing.rs:401` `pub(crate) struct SandboxAttempt<'a> {`（字段 `:402-419`）
-- 真正应用发生在 `SandboxAttempt::env_for`：交给 `SandboxManager::transform`。
-  - `codex-rs/core/src/tools/sandboxing.rs:490` `pub async fn env_for(`
-  - `codex-rs/core/src/tools/sandboxing.rs:500` `.transform(SandboxTransformRequest {`
-  - `codex-rs/core/src/tools/sandboxing.rs:519` `crate::sandboxing::ExecRequest::from_sandbox_exec_request(request, options, workspace_roots)`
-- 远程 exec-server 路径使用 `env_for_exec_server`，强制本金沙箱为 `SandboxType::None`，改由 exec-server 施加。
-  - `codex-rs/core/src/tools/sandboxing.rs:524` `pub async fn env_for_exec_server(`
-  - `codex-rs/core/src/tools/sandboxing.rs:539` `sandbox: SandboxType::None,`
-- 首次尝试前确认原生沙箱可用：`codex-rs/core/src/tools/sandboxing.rs:234` `pub(crate) fn ensure_native_sandbox(`。
-- 至少一个工具显式构造编排器：`codex-rs/core/src/tools/handlers/apply_patch.rs:555` `let mut orchestrator = ToolOrchestrator::new();`
+- `SandboxAttempt` 承载一次尝试的沙箱类型、权限、cwd、workspace roots 与 sandbox 可执行文件（`codex-rs/core/src/tools/sandboxing.rs:401`，字段 `:402-419`）。
+- 真正应用在 `SandboxAttempt::env_for`（`:490`）：`:500` `.transform(SandboxTransformRequest {`，随后 `:519` `crate::sandboxing::ExecRequest::from_sandbox_exec_request(request, options, workspace_roots)`。
+- 远程 exec-server 路径 `env_for_exec_server`（`:524`）强制本金沙箱为 `SandboxType::None`（`:539`），改由 exec-server 施加。
+- 首次尝试前确认原生沙箱可用（`:234` `pub(crate) fn ensure_native_sandbox(`）；至少一个工具显式构造编排器（`codex-rs/core/src/tools/handlers/apply_patch.rs:555`）。
 
 ---
 
@@ -281,20 +213,11 @@
 
 ### 5.2 事件与对话项如何进入 rollout
 
-- 对话项：`record_conversation_items` 先做准备，再写历史与持久化。
-  - `codex-rs/core/src/session/mod.rs:3573` `pub(crate) async fn record_conversation_items(`
-  - `codex-rs/core/src/session/mod.rs:3701` `if self.persist_rollout_items(&rollout_items).await`（`RolloutItem::ResponseItem`）
-- 协议事件：`send_event_raw_with_persistence` 在 `persist` 为真时写 `RolloutItem::EventMsg`。
-  - `codex-rs/core/src/session/mod.rs:2611` `async fn send_event_raw_with_persistence(&self, event: Event, persist: bool) {`
-  - `codex-rs/core/src/session/mod.rs:2643` `let rollout_items = vec![RolloutItem::EventMsg(event.msg.clone())];`
-- 统一写入口 `persist_rollout_items`，实际追加交给 `LiveThread`。
-  - `codex-rs/core/src/session/mod.rs:4596` `pub(crate) async fn persist_rollout_items(&self, items: &[RolloutItem]) -> bool {`
-  - `codex-rs/core/src/session/mod.rs:4598` `&& let Err(e) = live_thread.append_items(items).await`
-  - `codex-rs/thread-store/src/live_thread.rs:220` `pub async fn append_items(&self, raw_items: &[RolloutItem]) -> ThreadStoreResult<()> {`
-- 每次任务结束前有统一落盘屏障。
-  - `codex-rs/core/src/session/mod.rs:1477` `pub(crate) async fn flush_rollout(&self) -> std::io::Result<()> {`
-  - 任务侧调用 `codex-rs/core/src/tasks/mod.rs:387`（`sess.flush_rollout().await`）
-- 另一条写入路径是 `codex-rollout` 的 `RolloutRecorder`：`codex-rs/rollout/src/recorder.rs:1048` `pub async fn record_canonical_items(&self, items: &[RolloutItem]) -> std::io::Result<()> {`。
+- 对话项：`record_conversation_items`（`codex-rs/core/src/session/mod.rs:3573`）做准备后写历史与持久化（`:3701`，`RolloutItem::ResponseItem`）。
+- 协议事件：`send_event_raw_with_persistence`（`:2611`）在 `persist` 为真时写 `RolloutItem::EventMsg`（`:2643`）。
+- 统一写入口 `persist_rollout_items`（`:4596`），实际追加交给 `LiveThread`（`:4598` → `codex-rs/thread-store/src/live_thread.rs:220`）。
+- 每次任务结束前有统一落盘屏障 `flush_rollout`（`:1477`），任务侧调用 `codex-rs/core/src/tasks/mod.rs:387`。
+- 另一条写入路径是 `RolloutRecorder`：`codex-rs/rollout/src/recorder.rs:1048` `pub async fn record_canonical_items(&self, items: &[RolloutItem]) -> std::io::Result<()> {`。
 
 ### 5.3 rollout 预算
 
@@ -348,7 +271,7 @@
 ### 6.2 压缩替换了什么
 
 - `run_auto_compact` 是自动压缩统一入口；先建 world state，再按 provider 能力选实现。
-  - `codex-rs/core/src/session/turn.rs:1435` `async fn run_auto_compact(`（TokenBudget 特性走单独实现，`:1468-1476`）
+  - `codex-rs/core/src/session/turn.rs:1435` `async fn run_auto_compact(`（TokenBudget 走单独实现，`:1462`）
 - 自动压缩入口 `run_inline_auto_compact_task` 使用 `CompactionTrigger::Auto`。
   - `codex-rs/core/src/compact.rs:113` `pub(crate) async fn run_inline_auto_compact_task(`
   - `codex-rs/core/src/compact.rs:140` `CompactionTrigger::Auto,`
@@ -375,20 +298,11 @@
 
 ### 7.1 `spawn_agent` 如何创建子会话
 
-- 处理函数 `handle_spawn_agent` 先发 `CollabAgentToolCall`（InProgress）。
-  - `codex-rs/core/src/tools/handlers/multi_agents/spawn.rs:53` `async fn handle_spawn_agent(`
-- 深度检查：超过 `turn.config.agent_max_depth` 直接拒绝。
-  - `codex-rs/core/src/tools/handlers/multi_agents/spawn.rs:75` `let max_depth = turn.config.agent_max_depth;`
-  - 错误文案 `"Agent depth limit reached. Solve the task yourself."`（`:67-69`）。
-- 子代理配置由 `prepare_agent_spawn_config` 依父 turn 推导。
-  - `codex-rs/core/src/tools/handlers/multi_agents/spawn.rs:98` `let prepared = prepare_agent_spawn_config(`
-- 创建动作交给 `AgentControl::spawn`。
-  - `codex-rs/core/src/tools/handlers/multi_agents/spawn.rs:116` `.spawn(SpawnRequest {`
-  - `codex-rs/core/src/tools/handlers/multi_agents/spawn.rs:119` `input: AgentInput::UserInput(input_items),`
-  - `codex-rs/core/src/agent/control/spawn.rs:278` `pub(crate) async fn spawn_agent(`
-  - `codex-rs/core/src/agent/control/spawn.rs:676` `pub(super) async fn spawn_agent_internal(`
-- 结果里取新线程 id 与状态，用于完成事件。
-  - `codex-rs/core/src/tools/handlers/multi_agents/spawn.rs:153` `let (new_thread_id, status) = match &result {`
+- 处理函数 `handle_spawn_agent`（`codex-rs/core/src/tools/handlers/multi_agents/spawn.rs:53`）先发 `CollabAgentToolCall`（InProgress）。
+- 深度检查：`:75` `let max_depth = turn.config.agent_max_depth;`，超限文案 `:78` `"Agent depth limit reached. Solve the task yourself."`。
+- 子代理配置由 `prepare_agent_spawn_config` 依父 turn 推导（`:98`）。
+- 创建动作交给 `AgentControl::spawn`：`codex-rs/core/src/tools/handlers/multi_agents/spawn.rs:116` `.spawn(SpawnRequest {`、`:119` `input: AgentInput::UserInput(input_items),` → `codex-rs/core/src/agent/control/spawn.rs:278` `pub(crate) async fn spawn_agent(` → `:676` `pub(super) async fn spawn_agent_internal(`。
+- 结果取出新线程 id 与状态用于完成事件（`.../spawn.rs:153`）。
 
 ### 7.2 `SessionSource::SubAgent` 携带什么
 

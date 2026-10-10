@@ -4980,7 +4980,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <div class="pulse-dot"></div>
         <h1>Codex 的运行时：实现与逻辑</h1>
       </div>
-      <p class="subtitle">三层循环；队列 + 压缩 + 按需 MCP 都长在 turn 里</p>
+      <p class="subtitle">四层嵌套循环；队列、压缩、按需 MCP 都长在 turn 里</p>
     </div>
 
 
@@ -4990,7 +4990,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
          data-preset-badge-editorial-plate="ARCHIFY / 图版 04">
       <svg viewBox="0 0 1122 652" data-layout-contract="readable-v2" role="img" lang="zh-CN" aria-labelledby="archify-diagram-title archify-diagram-description" data-preset="classic" data-quality-profile="showcase">
         <title id="archify-diagram-title">Codex 的运行时：实现与逻辑</title>
-        <desc id="archify-diagram-description">三层循环；队列 + 压缩 + 按需 MCP 都长在 turn 里</desc>
+        <desc id="archify-diagram-description">四层嵌套循环；队列、压缩、按需 MCP 都长在 turn 里</desc>
         <!-- Definitions -->
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -5385,12 +5385,13 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       <div class="card">
         <div class="card-header">
           <div class="card-dot cyan"></div>
-          <h3>外层循环与任务分层</h3>
+          <h3>四层循环，不是一个 while</h3>
         </div>
         <ul>
-          <li>RegularTask::run 里 loop { run_turn(..) }，队列没活就收工</li>
-          <li>turn 不只一种：Regular / Compact / Review / UserShell，各走各的驱动</li>
-          <li>run_turn 的开场是压缩、记录输入、按输入拉起 MCP</li>
+          <li>① RegularTask::run 任务驱动：run_turn 正常返回且队列还有活就再来一轮（tasks/regular.rs:104）</li>
+          <li>② run_turn 步进循环：每轮取输入、记录、采样；needs_follow_up 为真就 continue（session/turn.rs:425）</li>
+          <li>③ try_run_sampling_request 流事件循环：处理 ResponseEvent 直到 Completed（session/turn.rs:2611）</li>
+          <li>④ run_sampling_request 重试循环：包住③，失败走 handle_response_stream_error（session/turn.rs:1640）</li>
         </ul>
       </div>
 
@@ -5400,9 +5401,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>回合内继续的条件</h3>
         </div>
         <ul>
-          <li>needs_follow_up = model_needs_follow_up || has_pending_input</li>
-          <li>每一圈采样前先 get_pending_input，把插话记成 SteeredUserInput</li>
-          <li>压缩写在 run_turn 开头，所以每个提前返回点都要补一次输入落盘</li>
+          <li>needs_follow_up = model_needs_follow_up || has_pending_input（session/turn.rs:574）</li>
+          <li>每轮先 get_pending_input，把插话记成 SteeredUserInput</li>
+          <li>压缩分两处：回合前 run_pre_sampling_compact，回合内 MidTurn 与 PostTurn 也会触发</li>
         </ul>
       </div>
 

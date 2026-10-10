@@ -3,7 +3,7 @@
   "diagram_type": "workflow",
   "meta": {
     "title": "Codex 的运行时：实现与逻辑",
-    "subtitle": "三层循环；队列 + 压缩 + 按需 MCP 都长在 turn 里",
+    "subtitle": "四层嵌套循环；队列、压缩、按需 MCP 都长在 turn 里",
     "locale": "zh-CN",
     "output": ".archify/workflow-three-runtimes-20261010-153000/codex-runtime.html",
     "quality_profile": "showcase"
@@ -186,20 +186,21 @@
   "cards": [
     {
       "dot": "cyan",
-      "title": "外层循环与任务分层",
+      "title": "四层循环，不是一个 while",
       "items": [
-        "RegularTask::run 里 loop { run_turn(..) }，队列没活就收工",
-        "turn 不只一种：Regular / Compact / Review / UserShell，各走各的驱动",
-        "run_turn 的开场是压缩、记录输入、按输入拉起 MCP"
+        "① RegularTask::run 任务驱动：run_turn 正常返回且队列还有活就再来一轮（tasks/regular.rs:104）",
+        "② run_turn 步进循环：每轮取输入、记录、采样；needs_follow_up 为真就 continue（session/turn.rs:425）",
+        "③ try_run_sampling_request 流事件循环：处理 ResponseEvent 直到 Completed（session/turn.rs:2611）",
+        "④ run_sampling_request 重试循环：包住③，失败走 handle_response_stream_error（session/turn.rs:1640）"
       ]
     },
     {
       "dot": "emerald",
       "title": "回合内继续的条件",
       "items": [
-        "needs_follow_up = model_needs_follow_up || has_pending_input",
-        "每一圈采样前先 get_pending_input，把插话记成 SteeredUserInput",
-        "压缩写在 run_turn 开头，所以每个提前返回点都要补一次输入落盘"
+        "needs_follow_up = model_needs_follow_up || has_pending_input（session/turn.rs:574）",
+        "每轮先 get_pending_input，把插话记成 SteeredUserInput",
+        "压缩分两处：回合前 run_pre_sampling_compact，回合内 MidTurn 与 PostTurn 也会触发"
       ]
     },
     {
