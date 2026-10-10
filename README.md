@@ -4,6 +4,21 @@
 >
 > 零依赖、纯 Node.js（`.mjs`），默认用确定性 Mock 模型，设了 `DEEPSEEK_API_KEY` 就能切真实模型。
 
+## 这一系列的其他仓库
+
+先在线上读：
+
+| 仓库 | 在线读 | 讲什么 |
+| --- | --- | --- |
+| dsh-agent-loop-notes | [在线](https://webaifei.github.io/dsh-agent-loop-notes/) · [源码](https://github.com/webaifei/dsh-agent-loop-notes) | DeepSeek Harness 的三层 `while`、两条队列、重试为什么不算新步骤 |
+| codex-agent-loop-notes | [在线](https://webaifei.github.io/codex-agent-loop-notes/) · [源码](https://github.com/webaifei/codex-agent-loop-notes) | Codex 的三层 `loop`，加一个叫 `needs_follow_up` 的布尔 |
+| muse-architecture-notes | [在线](https://webaifei.github.io/muse-architecture-notes/) · [源码](https://github.com/webaifei/muse-architecture-notes) | Meta Muse 的权限模型、凭据代理、状态机 |
+| manus-agent-research | [源码](https://github.com/webaifei/manus-agent-research) | Manus 的公开资料整理（暂未开 Pages） |
+
+上面几个都是**一个仓库钻一个系统**。这个仓库不一样：把三家放在一起，问同样的问题、看它们分别怎么答，再回源码核对为什么不同。
+
+主页：<https://webaifei.github.io/>
+
 ## 这个仓库想解决什么问题
 
 大部分人学「多 agent」，一上来就抄框架，结果：
