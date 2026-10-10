@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Codex 的 harness 是什么",
+    "subtitle": "你画的那个圈只是循环；harness 是让循环真正能干活的那一层",
+    "locale": "zh-CN",
+    "output": ".archify/architecture-codex-harness-20261010-150500/codex-harness.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "human", "type": "external", "label": "人", "sublabel": "给一个任务", "pos": [420, 40], "size": [200, 60] },
+    { "id": "llm", "type": "cloud", "label": "LLM", "sublabel": "决定下一步", "pos": [420, 180], "size": [200, 60] },
+    { "id": "loop", "type": "backend", "label": "Tool Call / Obs", "sublabel": "申请工具 · 回填结果", "pos": [420, 320], "size": [200, 60] },
+    { "id": "tools", "type": "backend", "label": "工具层", "sublabel": "exec_command · apply_patch", "pos": [420, 460], "size": [200, 60] },
+    { "id": "os", "type": "external", "label": "操作系统 / 仓库", "sublabel": "真实文件与进程", "pos": [420, 600], "size": [200, 60] },
+    { "id": "session", "type": "database", "label": "Session / rollout", "sublabel": "追加写 JSONL · 可 resume", "pos": [120, 180], "size": [200, 60] },
+    { "id": "context", "type": "backend", "label": "上下文与压缩", "sublabel": "历史裁剪 · token 预算", "pos": [120, 320], "size": [200, 60] },
+    { "id": "subagents", "type": "backend", "label": "Subagent 注册表", "sublabel": "spawn / wait · 深度上限", "pos": [720, 320], "size": [200, 60] },
+    { "id": "guard", "type": "security", "label": "沙箱 + 审批", "sublabel": "OS 强制 · 两个正交旋钮", "pos": [720, 460], "size": [200, 60] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Harness：模型不会自己做的事，都在这一圈里", "wraps": ["llm", "loop", "tools", "session", "context", "subagents", "guard"] }
+  ],
+  "connections": [
+    { "id": "human-to-llm", "from": "human", "to": "llm", "label": "给一个任务", "variant": "emphasis" },
+    { "id": "llm-to-loop", "from": "llm", "to": "loop", "label": "tool_call" },
+    { "id": "loop-to-tools", "from": "loop", "to": "tools", "label": "执行" },
+    { "id": "tools-to-os", "from": "tools", "to": "os", "label": "真改文件", "variant": "emphasis" },
+    { "id": "llm-to-session", "from": "llm", "to": "session", "label": "落盘", "variant": "dashed" },
+    { "id": "session-to-context", "from": "session", "to": "context", "label": "重放" },
+    { "id": "context-to-loop", "from": "context", "to": "loop", "label": "messages" },
+    { "id": "loop-to-subagents", "from": "loop", "to": "subagents", "label": "spawn_agent", "variant": "emphasis" },
+    { "id": "tools-to-guard", "from": "tools", "to": "guard", "label": "副作用", "variant": "security" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "圈里圈外",
+      "items": [
+        "左边的人、上面远处的模型服务、下面的操作系统，都不属于 harness",
+        "中间那一圈才是：它不产生智能，负责把智能变成能落地、能回看、能刹车的动作",
+        "换模型、换工具、换前端，这一圈的结构基本不动"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "记忆：让循环能跨进程活着",
+      "items": [
+        "Session / rollout 是追加写的 JSONL，模型可见的每一条都落盘，所以 codex resume 才能接着上次跑",
+        "上下文与压缩管的是成本：读三十个文件的过程不能全留在 messages 里",
+        "一次输入 = 一个 turn，turn 里是 item：agentMessage / commandExecution / fileChange"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "安全与协作：循环自己不管这些",
+      "items": [
+        "沙箱由操作系统强制（macOS Seatbelt / Linux Landlock），默认断网；审批策略 never / on-request / on-failure 是两个正交旋钮",
+        "工具的副作用统一从闸门过，循环不需要判断哪条命令危险",
+        "Subagent 注册表让一个循环能再开一个循环，靠深度和并发上限兜底"
+      ]
+    }
+  ]
+}
