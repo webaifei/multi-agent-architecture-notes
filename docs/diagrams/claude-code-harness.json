@@ -1,0 +1,366 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Claude Code 的 harness：消息怎么走完一圈",
+    "subtitle": "一个 loop，四路上下文来源，一道权限闸门；每一步都落到 transcript",
+    "locale": "zh-CN",
+    "output": ".archify/arch-claude-code-harness-20261011/cc-harness.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "host",
+      "type": "external",
+      "label": "用户 / SDK 宿主",
+      "sublabel": "键盘输入 · 脚本 · API 调用",
+      "pos": [
+        70,
+        80
+      ],
+      "size": [
+        185,
+        56
+      ]
+    },
+    {
+      "id": "input",
+      "type": "backend",
+      "label": "输入层",
+      "sublabel": "REPL · -p 打印模式 · Agent SDK",
+      "pos": [
+        340,
+        80
+      ],
+      "size": [
+        185,
+        56
+      ]
+    },
+    {
+      "id": "assemble",
+      "type": "backend",
+      "label": "① 组装上下文",
+      "sublabel": "消息历史 + 系统提示词 + 工具表",
+      "pos": [
+        400,
+        300
+      ],
+      "size": [
+        215,
+        130
+      ]
+    },
+    {
+      "id": "model",
+      "type": "cloud",
+      "label": "② Anthropic API",
+      "sublabel": "流式返回 assistant 帧",
+      "pos": [
+        760,
+        300
+      ],
+      "size": [
+        185,
+        56
+      ]
+    },
+    {
+      "id": "tools",
+      "type": "backend",
+      "label": "③ 执行工具",
+      "sublabel": "runToolUse",
+      "pos": [
+        760,
+        580
+      ],
+      "size": [
+        185,
+        56
+      ]
+    },
+    {
+      "id": "commit",
+      "type": "database",
+      "label": "④ 回填",
+      "sublabel": "结果进消息历史",
+      "pos": [
+        400,
+        580
+      ],
+      "size": [
+        185,
+        56
+      ]
+    },
+    {
+      "id": "log",
+      "type": "database",
+      "label": "会话 transcript",
+      "sublabel": "每一步落盘",
+      "pos": [
+        570,
+        440
+      ],
+      "size": [
+        175,
+        56
+      ]
+    },
+    {
+      "id": "prompt",
+      "type": "backend",
+      "label": "系统提示词",
+      "sublabel": "静态块 ║ 动态边界",
+      "pos": [
+        70,
+        270
+      ],
+      "size": [
+        205,
+        56
+      ]
+    },
+    {
+      "id": "memory",
+      "type": "database",
+      "label": "记忆",
+      "sublabel": "CLAUDE.md 四级 + 自动记忆",
+      "pos": [
+        70,
+        420
+      ],
+      "size": [
+        205,
+        56
+      ]
+    },
+    {
+      "id": "compact",
+      "type": "backend",
+      "label": "压缩",
+      "sublabel": "超阈值触发",
+      "pos": [
+        70,
+        570
+      ],
+      "size": [
+        205,
+        56
+      ]
+    },
+    {
+      "id": "pool",
+      "type": "backend",
+      "label": "工具池",
+      "sublabel": "内置 + MCP，按 deny 过滤",
+      "pos": [
+        70,
+        720
+      ],
+      "size": [
+        205,
+        56
+      ]
+    },
+    {
+      "id": "guard",
+      "type": "security",
+      "label": "权限闸门",
+      "sublabel": "hooks → 判定 → ask",
+      "pos": [
+        1000,
+        580
+      ],
+      "size": [
+        195,
+        56
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "交互层",
+      "wraps": [
+        "host",
+        "input"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Agent loop（一圈 = 一次模型请求 + 它要求的工具）",
+      "wraps": [
+        "assemble",
+        "model",
+        "tools",
+        "commit"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "上下文从哪来（每轮组装时取材）",
+      "wraps": [
+        "prompt",
+        "memory",
+        "compact",
+        "pool"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "c1",
+      "from": "host",
+      "to": "input",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "c2",
+      "from": "input",
+      "to": "assemble",
+      "variant": "emphasis",
+      "label": "消息入队，轮次边界取用",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "c3",
+      "from": "assemble",
+      "to": "model",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "c4",
+      "from": "model",
+      "to": "tools",
+      "variant": "emphasis",
+      "label": "工具调用",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "c5",
+      "from": "tools",
+      "to": "commit",
+      "variant": "emphasis",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "c6",
+      "from": "commit",
+      "to": "assemble",
+      "variant": "emphasis",
+      "label": "下一圈",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "c7",
+      "from": "prompt",
+      "to": "assemble",
+      "variant": "default",
+      "label": "每轮注入"
+    },
+    {
+      "id": "c8",
+      "from": "memory",
+      "to": "assemble",
+      "variant": "default",
+      "label": "相关记忆"
+    },
+    {
+      "id": "c9",
+      "from": "compact",
+      "to": "assemble",
+      "variant": "default",
+      "label": "超阈值时替换历史"
+    },
+    {
+      "id": "c10",
+      "from": "pool",
+      "to": "assemble",
+      "variant": "default",
+      "label": "工具定义进请求"
+    },
+    {
+      "id": "c11",
+      "from": "guard",
+      "to": "tools",
+      "variant": "default",
+      "label": "放行或询问",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "l1",
+      "from": "assemble",
+      "to": "log",
+      "variant": "dashed"
+    },
+    {
+      "id": "l2",
+      "from": "model",
+      "to": "log",
+      "variant": "dashed"
+    },
+    {
+      "id": "l3",
+      "from": "tools",
+      "to": "log",
+      "variant": "dashed"
+    },
+    {
+      "id": "l4",
+      "from": "commit",
+      "to": "log",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "① 组装上下文：每轮从哪取材",
+      "items": [
+        "系统提示词分两段：静态块（身份/规则/工具用法/语气）＋ SYSTEM_PROMPT_DYNAMIC_BOUNDARY 之后的动态块",
+        "动态块由 registry 管理、可缓存；少数标 DANGEROUS_uncached 的会打破 prompt cache",
+        "记忆四级：Managed(/etc/claude-code) · User(~/.claude) · Project(CLAUDE.md 与 .claude/rules) · Local(CLAUDE.local.md)；另有自动记忆按需检索",
+        "工具表在组装时定下来：内置 + MCP，先按 deny 规则过滤"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "②③④ 一圈里发生什么",
+      "items": [
+        "组装好的消息历史 + 系统提示词 + 工具表一起发给 model",
+        "模型返回 assistant 帧；里面有 tool_use 就进 ③ 逐个执行",
+        "结果进 ④ 回填到消息历史，回到 ① 开始下一圈",
+        "出口：没有 tool_use、到 maxTurns、或被 hooks 叫停"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "③ 每次工具调用的闸门顺序",
+      "items": [
+        "先跑 PreToolUse hooks，它可以自己给一个 hookPermissionResult",
+        "再走权限判定 → allow / ask / deny；ask 会停下来问人",
+        "判定通过才 tool.call()；随后 PostToolUse hooks，失败走 PostToolUseFailure",
+        "权限规则和记忆一样分四级：Managed / User / Project / Local"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "贯穿全程的 transcript",
+      "items": [
+        "每一步（用户消息、assistant 帧、工具结果）都追加进会话 JSONL",
+        "它不在环上，是旁路——所以画在环心",
+        "压缩、会话恢复、子 agent 侧链记录，读的都是它"
+      ]
+    }
+  ]
+}

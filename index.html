@@ -118,7 +118,17 @@
   </div>
 </div>
 
-<h2><span class="n">03</span> 运行时全流程：每一步落到哪</h2>
+<h2><span class="n">03</span> Harness 全貌：消息怎么走完一圈</h2>
+<p class="note">一个 loop，四路上下文来源，一道权限闸门；每一步都落到 transcript。</p>
+<div class="grid">
+  <div class="card">
+    <h3>claude-code-harness</h3>
+    <p>从用户输入到 Agent loop：系统提示词分块、记忆四级、工具池、权限闸门、会话 transcript，各自卡在哪一环。</p>
+    <div class="links"><a class="primary" href="docs/diagrams/claude-code-harness.html">打开</a><a href="docs/diagrams/claude-code-harness.png">PNG</a></div>
+  </div>
+</div>
+
+<h2><span class="n">04</span> 运行时全流程：每一步落到哪</h2>
 <p class="note">流水线版。环形图讲「循环长什么样」，这一组讲「每个动作落到哪张表、哪个函数」。</p>
 <div class="grid">
   <div class="card">
@@ -138,7 +148,7 @@
   </div>
 </div>
 
-<h2><span class="n">04</span> 子 agent 数据流</h2>
+<h2><span class="n">05</span> 子 agent 数据流</h2>
 <p class="note">一次「需要子 agent 的用户意图」走完整条链，看数据在哪一步被复制、在哪一步被丢掉。</p>
 <div class="grid">
   <div class="card">
@@ -153,7 +163,7 @@
   </div>
 </div>
 
-<h2><span class="n">05</span> 横向对照</h2>
+<h2><span class="n">06</span> 横向对照</h2>
 <div class="grid">
   <div class="card">
     <h3>result-flow</h3>
@@ -167,7 +177,7 @@
   </div>
 </div>
 
-<h2><span class="n">06</span> 归档</h2>
+<h2><span class="n">07</span> 归档</h2>
 <p class="note">被新版本取代的图，留着看演进。</p>
 <div class="grid">
   <div class="card">

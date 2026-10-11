@@ -62,7 +62,7 @@ multi-agent-architecture-notes/
 ├── index.html             # 图集入口页（GitHub Pages 用）
 ├── README.md              # 你在这里
 ├── docs/                  # 讲解文档（概念、每章笔记、最终对比）
-│   ├── diagrams/          # 13 张架构图（可交互 HTML + PNG + 源 JSON）
+│   ├── diagrams/          # 14 张架构图（可交互 HTML + PNG + 源 JSON）
 │   │   └── archive/       # 被新版取代的图
 │   └── sources/           # 资料来源：每条机制的可核对出处，正文引用它
 ├── lib/                   # 三层公共设施：模型适配、trace 输出、会话日志、能力接缝
@@ -113,7 +113,7 @@ multi-agent-architecture-notes/
 
 ### 第 4 章 · 对比
 
-- [x] **架构图集**：`docs/diagrams/` —— 13 张图，分五组：Agent loop（环形）· Loop + 子 agent · 运行时全流程 · 子 agent 数据流 · 横向对照。在线看：<https://webaifei.github.io/multi-agent-architecture-notes/>
+- [x] **架构图集**：`docs/diagrams/` —— 14 张图，分六组：Agent loop（环形）· Loop + 子 agent · **Harness 全貌** · 运行时全流程 · 子 agent 数据流 · 横向对照。在线看：<https://webaifei.github.io/multi-agent-architecture-notes/>
 - [ ] `docs/99-comparison.md`：一张表说清三家取舍
 
 ## 怎么跑
